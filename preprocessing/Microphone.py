@@ -12,4 +12,4 @@ class Microphone:
         self.q = q
 
     def __repr__(self):
-        return f"Microphone({self.mic}, {self.name}, {self.x}, {self.y}, {self.dx}, {self.dy}, {self.p}, {self.q})"
+        return f"Microphone({self.id}, {self.name}, {self.x}, {self.y}, {self.dx}, {self.dy}, {self.p}, {self.q})"

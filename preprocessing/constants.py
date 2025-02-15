@@ -14,9 +14,12 @@ NUM_CHANNELS = 3
 
 # FILENAMES
 FILENAME_HEADER = "Header.mat"
+FILENAME_CHANNEL_INFO = "channel_info.csv"
 
 # FOLDERS
 PATH_FOLDER_DATASET = "../dataset"
 PATH_FOLDER_TIMESERIES = "../timeseries"
+
+# PATHS
 
 

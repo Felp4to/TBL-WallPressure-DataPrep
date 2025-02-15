@@ -1,6 +1,6 @@
 # FlightTest.py
 
-# this class rapresents a flight test including all its features and the corresponding time series
+# this class rapresents a flight test including all its features and the corresponding csv file of the time series 
 
 class FlightTest:
     def __init__(self, id, version, number_of_values, number_of_channels, block_size, proc_method,

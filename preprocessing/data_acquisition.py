@@ -1,6 +1,7 @@
 # data_acquisition.py
 
 from FlightTest import FlightTest
+from Microphone import Microphone
 import constants as cs
 from mat4py import loadmat
 from tqdm import tqdm
@@ -8,10 +9,12 @@ import pandas as pd
 import os
 
 
+# generate all flight tests csv
 def generate_tests_csv():
     for test in cs.FLIGHT_TESTS:
         generate_test_csv(test)
         
+# generate a flight test csv
 def generate_test_csv(test):
     for n in tqdm(range(1, cs.NUM_CHANNELS), desc=f"Create csv files for the flight test {test.value}", unit="file"):
         path_channel = os.path.join(cs.PATH_FOLDER_DATASET, test.value, f"Channel{n}.mat")
@@ -19,6 +22,7 @@ def generate_test_csv(test):
         path_channel_csv = os.path.join(cs.PATH_FOLDER_TIMESERIES, test.value, f"Channel{n}.csv")
         df.to_csv(path_channel_csv, index=False)
 
+# generate flight tests instances
 def generate_flight_tests():
     flight_tests = []
     for test in cs.FLIGHT_TESTS:
@@ -54,8 +58,16 @@ def generate_flight_tests():
     return flight_tests
 
 
+# read channels info
+def read_channels_info():
+    # read csv file
+    df = pd.read_csv(cs.FILENAME_CHANNEL_INFO)
+    # convert dataframe into tuple list
+    return list(df.itertuples(index=False, name=None))
 
-
+# create microphone instances
+def generate_microphones():
+    return [Microphone(*data) for data in read_channels_info()]
 
 
 
