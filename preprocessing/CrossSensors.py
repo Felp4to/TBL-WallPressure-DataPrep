@@ -1,14 +1,53 @@
 # CrossSensors.py
 
+import matplotlib.pyplot as plt
+import pandas as pd
+
+pd.set_option("display.max_rows", None)  
+pd.set_option("display.max_columns", None)  
+
+
 class CrossSensors:
     def __init__(self, microphones):
         self.microphones = microphones
 
     def __repr__(self):
-        return self.microphones
+        return f"CrossSensors(microphones={repr(self.microphones)})"
     
-    def plot_microphones():
-        return 0
+    def to_dataframe(self):
+        # merges the dataframe of each microphone in a single datafram
+        return pd.concat([mic.to_dataframe() for mic in self.microphones], ignore_index=True)
+    
+    def plot_sensors(self):
+        """
+        Plots the sensor positions using the x and y coordinates, maximizing the plot in a window if possible.
+        """
+        df = self.to_dataframe()
+        
+        # Try to maximize the window if in a local environment
+        try:
+            manager = plt.get_current_fig_manager()
+            manager.window.showMaximized()  # Attempt to maximize the window
+        except AttributeError:
+            # If the above line fails (in environments like Jupyter), we just set a large figure size
+            pass
+        
+        # Set the figure size for larger resolution
+        plt.figure(figsize=(15, 8))  # Adjust this as needed for full screen
+        
+        plt.scatter(df['x'], df['y'], c='blue', label='Microphones', alpha=0.7)
+        
+        # Annotate each point with its name
+        for _, row in df.iterrows():
+            plt.text(row['x'], row['y'], row['name'], fontsize=9, ha='right', va='bottom')
+        
+        plt.xlabel("X Coordinate")
+        plt.ylabel("Y Coordinate")
+        plt.title("Microphone Positions")
+        plt.legend()
+        plt.grid(True, linestyle='--', alpha=0.6)
+        plt.show()
+
 
 
 
