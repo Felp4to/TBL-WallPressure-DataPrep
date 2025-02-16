@@ -19,9 +19,7 @@ class CrossSensors:
         return pd.concat([mic.to_dataframe() for mic in self.microphones], ignore_index=True)
     
     def plot_sensors(self):
-        """
-        Plots the sensor positions using the x and y coordinates, maximizing the plot in a window if possible.
-        """
+        # plots the sensor positions using x and y coordinates
         df = self.to_dataframe()
         
         # Try to maximize the window if in a local environment
@@ -33,13 +31,13 @@ class CrossSensors:
             pass
         
         # Set the figure size for larger resolution
-        plt.figure(figsize=(15, 8))  # Adjust this as needed for full screen
+        plt.figure(figsize=(20, 12)) 
         
         plt.scatter(df['x'], df['y'], c='blue', label='Microphones', alpha=0.7)
         
         # Annotate each point with its name
         for _, row in df.iterrows():
-            plt.text(row['x'], row['y'], row['name'], fontsize=9, ha='right', va='bottom')
+            plt.text(row['x'], row['y'], row['name'], fontsize=5, ha='right', va='bottom')
         
         plt.xlabel("X Coordinate")
         plt.ylabel("Y Coordinate")
