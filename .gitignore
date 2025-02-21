@@ -1,2 +1,4 @@
 /dataset/
 /timeseries/
+/partitioning/npy/
+/preprocessing/channel_info.csv
