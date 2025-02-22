@@ -4,6 +4,7 @@
 
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split
+from tqdm import tqdm
 import pandas as pd
 import xgboost as xgb
 import numpy as np
@@ -11,9 +12,10 @@ import os
 
 
 
-# Generatore che crea sequenze di dati senza caricarle tutte in memoria.
-def sequence_generator(data, seq_length, overlapping, batch_size=1024):
-    # Se overlapping è 0, nessuna sovrapposizione tra le sequenze
+def sequence_generator(data, seq_length, overlapping, batch_size):
+    """
+    Generatore che crea sequenze di dati senza caricarle tutte in memoria.
+    """
     step = overlapping if overlapping != 0 else seq_length
     X, y = [], []
     
@@ -31,8 +33,6 @@ def sequence_generator(data, seq_length, overlapping, batch_size=1024):
     if X:
         yield np.array(X), np.array(y)
 
-
-# Funzione per creare sequenze e salvare i dati in modo ottimizzato.
 def create_partitions_with_generators(df, seq_length, test_size, overlapping, folder_path, batch_size):
     """
     Funzione per creare sequenze e salvare i dati in modo ottimizzato.
@@ -47,9 +47,11 @@ def create_partitions_with_generators(df, seq_length, test_size, overlapping, fo
     total_samples = len(df) - seq_length
     train_samples = int(total_samples * (1 - test_size))
     
+    # Generatori per train e test
     train_gen = sequence_generator(df["scaledData"].values[:train_samples], seq_length, overlapping, batch_size)
     test_gen = sequence_generator(df["scaledData"].values[train_samples:], seq_length, overlapping, batch_size)
 
+    # Percorso per la cartella
     folder_path = os.path.join('npy', folder_path)
     os.makedirs(folder_path, exist_ok=True)
 
@@ -69,17 +71,24 @@ def create_partitions_with_generators(df, seq_length, test_size, overlapping, fo
     if not os.path.exists(test_y_file):
         pd.DataFrame(columns=["target"]).to_csv(test_y_file, index=False)
 
-    # Scrivi i dati nei file CSV
-    for X_batch, y_batch in train_gen:
-        # Converte i dati in DataFrame e li appende
+    # Calcola il numero totale di batch per il training e il testing
+    train_batches = len(df["scaledData"].values[:train_samples]) // (batch_size * overlapping)
+    test_batches = len(df["scaledData"].values[train_samples:]) // (batch_size * overlapping)
+
+    # Usa tqdm per determinare la lunghezza dei generatori
+    print("Salvataggio dei dati di addestramento...")
+    for X_batch, y_batch in tqdm(train_gen, desc="Training", unit="batch", total=train_batches, position=0, leave=True):
         pd.DataFrame(X_batch).to_csv(train_X_file, mode='a', header=False, index=False)
         pd.DataFrame(y_batch).to_csv(train_y_file, mode='a', header=False, index=False)
 
-    for X_batch, y_batch in test_gen:
+    print("Salvataggio dei dati di test...")
+    for X_batch, y_batch in tqdm(test_gen, desc="Testing", unit="batch", total=test_batches, position=1, leave=True):
         pd.DataFrame(X_batch).to_csv(test_X_file, mode='a', header=False, index=False)
         pd.DataFrame(y_batch).to_csv(test_y_file, mode='a', header=False, index=False)
 
     print(f'I dati sono stati salvati in {folder_path}')
+
+
 
 
 
