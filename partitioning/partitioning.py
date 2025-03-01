@@ -12,149 +12,152 @@ import os
 
 
 
+# used by generators to create partitions
 def sequence_generator(data, seq_length, overlapping, batch_size):
-    """
-    Generatore che crea sequenze di dati senza caricarle tutte in memoria.
-    """
     step = overlapping if overlapping != 0 else seq_length
     X, y = [], []
     
-    # Creazione delle sequenze
     for i in range(0, len(data) - seq_length, step):
         X.append(data[i:i+seq_length])
-        y.append(data[i+seq_length])  # La label è il valore successivo alla sequenza
+        y.append(data[i+seq_length])
         
-        # Quando il batch è pieno, yield e resetta le liste
         if len(X) == batch_size:
             yield np.array(X), np.array(y)
             X, y = [], []
     
-    # Se ci sono dati rimanenti, restituisci l'ultimo batch
     if X:
         yield np.array(X), np.array(y)
 
-def create_partitions_with_generators(df, seq_length, test_size, overlapping, folder_path, batch_size):
-    """
-    Funzione per creare sequenze e salvare i dati in modo ottimizzato.
-    Genera solo 4 file finali: X_train, X_test, y_train, y_test
-    """
 
-    # Normalizza i dati
-    scaler = MinMaxScaler(feature_range=(0, 1))
+# create partitions with generators paying attention to the memory occupancy
+def create_partitions_with_generators(df, seq_length, test_size, overlapping, folder_path, batch_size, norm=(-1, 1), save_csv=True):
+    # Normalizzazione dei dati
+    scaler = MinMaxScaler(feature_range=norm)
     df["scaledData"] = scaler.fit_transform(df[["singleData"]])
-
-    # Divide il dataset in train e test
+    
+    # Suddivisione del dataset
     total_samples = len(df) - seq_length
-    train_samples = int(total_samples * (1 - test_size))
+    val_test_samples = int(total_samples * test_size)
+    train_samples = total_samples - 2 * val_test_samples
     
-    # Generatori per train e test
     train_gen = sequence_generator(df["scaledData"].values[:train_samples], seq_length, overlapping, batch_size)
-    test_gen = sequence_generator(df["scaledData"].values[train_samples:], seq_length, overlapping, batch_size)
-
-    # Percorso per la cartella
+    val_gen = sequence_generator(df["scaledData"].values[train_samples:train_samples + val_test_samples], seq_length, overlapping, batch_size)
+    test_gen = sequence_generator(df["scaledData"].values[train_samples + val_test_samples:], seq_length, overlapping, batch_size)
+    
+    # Creazione della cartella per salvare i file
     folder_path = os.path.join('npy', folder_path)
     os.makedirs(folder_path, exist_ok=True)
-
-    # File CSV per appendere i dati
-    train_X_file = os.path.join(folder_path, 'X_train.csv')
-    train_y_file = os.path.join(folder_path, 'y_train.csv')
-    test_X_file = os.path.join(folder_path, 'X_test.csv')
-    test_y_file = os.path.join(folder_path, 'y_test.csv')
-
-    # Salva le intestazioni dei file CSV (se non esistono già)
-    if not os.path.exists(train_X_file):
-        pd.DataFrame(columns=[f"feature_{i}" for i in range(seq_length)]).to_csv(train_X_file, index=False)
-    if not os.path.exists(train_y_file):
-        pd.DataFrame(columns=["target"]).to_csv(train_y_file, index=False)
-    if not os.path.exists(test_X_file):
-        pd.DataFrame(columns=[f"feature_{i}" for i in range(seq_length)]).to_csv(test_X_file, index=False)
-    if not os.path.exists(test_y_file):
-        pd.DataFrame(columns=["target"]).to_csv(test_y_file, index=False)
-
-    # Calcola il numero totale di batch per il training e il testing
-    train_batches = len(df["scaledData"].values[:train_samples]) // (batch_size * overlapping)
-    test_batches = len(df["scaledData"].values[train_samples:]) // (batch_size * overlapping)
-
-    # Usa tqdm per determinare la lunghezza dei generatori
-    print("Salvataggio dei dati di addestramento...")
-    for X_batch, y_batch in tqdm(train_gen, desc="Training", unit="batch", total=train_batches, position=0, leave=True):
-        pd.DataFrame(X_batch).to_csv(train_X_file, mode='a', header=False, index=False)
-        pd.DataFrame(y_batch).to_csv(train_y_file, mode='a', header=False, index=False)
-
-    print("Salvataggio dei dati di test...")
-    for X_batch, y_batch in tqdm(test_gen, desc="Testing", unit="batch", total=test_batches, position=1, leave=True):
-        pd.DataFrame(X_batch).to_csv(test_X_file, mode='a', header=False, index=False)
-        pd.DataFrame(y_batch).to_csv(test_y_file, mode='a', header=False, index=False)
-
-    print(f'I dati sono stati salvati in {folder_path}')
-
-
-
-
-
-###############
-def create_sequences(data, seq_length=10, overlapping=True):
-    X, y = [], []
     
-    if overlapping:
-        step = 1                                                        # Shift di 1 elemento (overlapping)
-    else:
-        step = seq_length                                               # Shift della lunghezza della sequenza (no overlap)
+    data_partitions = {
+        "train": train_gen,
+        "val": val_gen,
+        "test": test_gen
+    }
     
-    for i in range(0, len(data) - seq_length, step):
-        X.append(data[i:i+seq_length])
-        y.append(data[i+seq_length])                                    # Target è il valore successivo alla sequenza
-    
-    return np.array(X), np.array(y)
+    for partition in data_partitions:
+        X_file = os.path.join(folder_path, f'X_{partition}.csv')
+        y_file = os.path.join(folder_path, f'y_{partition}.csv')
+        buffer_file = os.path.join(folder_path, f'd{partition}.buffer')
+
+        temp_csv_files = []  # Lista per file temporanei
+        batch_idx = 0
+
+        # Iterazione sui batch
+        for X_batch, y_batch in tqdm(data_partitions[partition], desc=f"Salvataggio {partition.capitalize()}", unit="batch"):
+            temp_X_file = f"{X_file}_temp_{batch_idx}.csv"
+            temp_y_file = f"{y_file}_temp_{batch_idx}.csv"
+
+            # Salvataggio temporaneo dei batch
+            pd.DataFrame(X_batch).to_csv(temp_X_file, index=False, header=False)
+            pd.DataFrame(y_batch).to_csv(temp_y_file, index=False, header=False)
+
+            temp_csv_files.append((temp_X_file, temp_y_file))
+            batch_idx += 1
+
+        print(f"Unione dei file temporanei per {partition} in un unico buffer...")
+
+        # Unione dei file temporanei in un unico dataset
+        X_data = []
+        y_data = []
+        
+        for temp_X_file, temp_y_file in temp_csv_files:
+            X_data.append(pd.read_csv(temp_X_file, header=None).values)
+            y_data.append(pd.read_csv(temp_y_file, header=None).values.flatten())
+
+            os.remove(temp_X_file)  # Eliminazione del file temporaneo
+            os.remove(temp_y_file)  # Eliminazione del file temporaneo
+
+        # Concatenazione dei batch
+        X_data = np.vstack(X_data)
+        y_data = np.hstack(y_data)
+
+        # Creazione del DMatrix e salvataggio in .buffer
+        dmatrix = xgb.DMatrix(X_data, label=y_data)
+        dmatrix.save_binary(buffer_file)
+
+        print(f"✅ File .buffer per {partition} salvato correttamente: {buffer_file}")
+
+        # Se save_csv è True, creiamo i file CSV completi
+        if save_csv:
+            pd.DataFrame(X_data).to_csv(X_file, index=False, header=[f"feature_{i}" for i in range(seq_length)])
+            pd.DataFrame(y_data, columns=["target"]).to_csv(y_file, index=False)
+
+    print(f'I file sono stati salvati in {folder_path}')
 
 
-def create_partitions(df, seq_length, test_size, overlapping, shuffle, folder_path):
-    # Normalizza i dati
-    scaler = MinMaxScaler(feature_range=(0, 1))
+# create partitions with generators witout paying attention to the memory occupancy
+def create_partitions_with_generators_2(df, seq_length, test_size, overlapping, folder_path, batch_size, norm=(-1, 1), save_csv=True):
+    scaler = MinMaxScaler(feature_range=norm)
     df["scaledData"] = scaler.fit_transform(df[["singleData"]])
-
-    # Generare i dati di input e target
-    X, y = create_sequences(df["scaledData"].values, seq_length, overlapping)
-
-    # Divisione in training e test set (80% train, 20% test)
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
-
-    # Reshape per adattare il modello LSTM: (samples, time steps, features)
-    X_train = X_train.reshape((X_train.shape[0], X_train.shape[1]))  # Rende 2D
-    X_test = X_test.reshape((X_test.shape[0], X_test.shape[1]))      # Rende 2D
-
-    dtrain = xgb.DMatrix(X_train, label=y_train)
-    dtest = xgb.DMatrix(X_test, label=y_test)
-
-    print(f"X_train shape: {X_train.shape}, y_train shape: {y_train.shape}")
-    print(f"X_test shape: {X_test.shape}, y_test shape: {y_test.shape}")
-
+    
+    total_samples = len(df) - seq_length
+    val_test_samples = int(total_samples * test_size)
+    train_samples = total_samples - 2 * val_test_samples
+    
+    train_gen = sequence_generator(df["scaledData"].values[:train_samples], seq_length, overlapping, batch_size)
+    val_gen = sequence_generator(df["scaledData"].values[train_samples:train_samples + val_test_samples], seq_length, overlapping, batch_size)
+    test_gen = sequence_generator(df["scaledData"].values[train_samples + val_test_samples:], seq_length, overlapping, batch_size)
+    
     folder_path = os.path.join('npy', folder_path)
     os.makedirs(folder_path, exist_ok=True)
+    
+    data_partitions = {
+        "train": train_gen,
+        "val": val_gen,
+        "test": test_gen
+    }
+    
+    for partition in data_partitions:
+        X_file = os.path.join(folder_path, f'X_{partition}.csv')
+        y_file = os.path.join(folder_path, f'y_{partition}.csv')
+        buffer_file = os.path.join(folder_path, f'd{partition}.buffer')
+        
+        if save_csv:
+            if not os.path.exists(X_file):
+                pd.DataFrame(columns=[f"feature_{i}" for i in range(seq_length)]).to_csv(X_file, index=False)
+            if not os.path.exists(y_file):
+                pd.DataFrame(columns=["target"]).to_csv(y_file, index=False)
+        
+        X_data, y_data = [], []
+        
+        for X_batch, y_batch in tqdm(data_partitions[partition], desc=f"Salvataggio {partition.capitalize()}", unit="batch"):
+            if save_csv:
+                pd.DataFrame(X_batch).to_csv(X_file, mode='a', header=False, index=False)
+                pd.DataFrame(y_batch).to_csv(y_file, mode='a', header=False, index=False)
+            
+            X_data.append(X_batch)
+            y_data.append(y_batch)
+        
+        X_data = np.vstack(X_data)
+        y_data = np.hstack(y_data)
+        dmatrix = xgb.DMatrix(X_data, label=y_data)
+        dmatrix.save_binary(buffer_file)
+    
+    print(f'I file sono stati salvati in {folder_path}')
 
-    # Salvataggio dei dati in file .npy
-    np.save(os.path.join(folder_path, 'X_train.npy'), X_train)
-    np.save(os.path.join(folder_path, 'X_test.npy'), X_test)
-    np.save(os.path.join(folder_path, 'y_train.npy'), y_train)
-    np.save(os.path.join(folder_path, 'y_test.npy'), y_test)
-    dtrain.save_binary(os.path.join(folder_path, 'dtrain.buffer'))
-    dtest.save_binary(os.path.join(folder_path, 'dtest.buffer'))
-
-    print(f'I dati sono stati salvati in {folder_path}')
-
-    return X_train, X_test, y_train, y_test
 
 
-
-
-
-
-
-
-
-
-
-
+# 
 
 
 
