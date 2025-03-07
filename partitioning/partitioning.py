@@ -9,6 +9,12 @@ import pandas as pd
 import xgboost as xgb
 import numpy as np
 import os
+import sys
+
+# Aggiunge la cartella superiore al path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'preprocessing')))
+
+import normalizzation as norm
 
 
 
@@ -30,19 +36,16 @@ def sequence_generator(data, seq_length, overlapping, batch_size):
 
 
 # create partitions with generators paying attention to the memory occupancy
-def create_partitions_with_generators(df, seq_length, test_size, overlapping, folder_path, batch_size, norm=(-1, 1), save_csv=True):
-    # Normalizzazione dei dati
-    scaler = MinMaxScaler(feature_range=norm)
-    df["scaledData"] = scaler.fit_transform(df[["singleData"]])
+def create_partitions_with_generators(df, seq_length, test_size, overlapping, folder_path, batch_size, save_csv=True):
     
     # Suddivisione del dataset
     total_samples = len(df) - seq_length
     val_test_samples = int(total_samples * test_size)
     train_samples = total_samples - 2 * val_test_samples
     
-    train_gen = sequence_generator(df["scaledData"].values[:train_samples], seq_length, overlapping, batch_size)
-    val_gen = sequence_generator(df["scaledData"].values[train_samples:train_samples + val_test_samples], seq_length, overlapping, batch_size)
-    test_gen = sequence_generator(df["scaledData"].values[train_samples + val_test_samples:], seq_length, overlapping, batch_size)
+    train_gen = sequence_generator(df["singleData"].values[:train_samples], seq_length, overlapping, batch_size)
+    val_gen = sequence_generator(df["singleData"].values[train_samples:train_samples + val_test_samples], seq_length, overlapping, batch_size)
+    test_gen = sequence_generator(df["singleData"].values[train_samples + val_test_samples:], seq_length, overlapping, batch_size)
     
     # Creazione della cartella per salvare i file
     folder_path = os.path.join('npy', folder_path)
@@ -105,18 +108,18 @@ def create_partitions_with_generators(df, seq_length, test_size, overlapping, fo
     print(f'I file sono stati salvati in {folder_path}')
 
 
+
+
 # create partitions with generators witout paying attention to the memory occupancy
-def create_partitions_with_generators_2(df, seq_length, test_size, overlapping, folder_path, batch_size, norm=(-1, 1), save_csv=True):
-    scaler = MinMaxScaler(feature_range=norm)
-    df["scaledData"] = scaler.fit_transform(df[["singleData"]])
+def create_partitions_with_generators_2(df, seq_length, test_size, overlapping, folder_path, batch_size, save_csv=True):
     
     total_samples = len(df) - seq_length
     val_test_samples = int(total_samples * test_size)
     train_samples = total_samples - 2 * val_test_samples
     
-    train_gen = sequence_generator(df["scaledData"].values[:train_samples], seq_length, overlapping, batch_size)
-    val_gen = sequence_generator(df["scaledData"].values[train_samples:train_samples + val_test_samples], seq_length, overlapping, batch_size)
-    test_gen = sequence_generator(df["scaledData"].values[train_samples + val_test_samples:], seq_length, overlapping, batch_size)
+    train_gen = sequence_generator(df["singleData"].values[:train_samples], seq_length, overlapping, batch_size)
+    val_gen = sequence_generator(df["singleData"].values[train_samples:train_samples + val_test_samples], seq_length, overlapping, batch_size)
+    test_gen = sequence_generator(df["singleData"].values[train_samples + val_test_samples:], seq_length, overlapping, batch_size)
     
     folder_path = os.path.join('npy', folder_path)
     os.makedirs(folder_path, exist_ok=True)
