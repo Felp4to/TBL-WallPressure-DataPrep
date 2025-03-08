@@ -4,6 +4,7 @@ import constants as cs
 import pandas as pd
 
 
+
 # extract first n seconds from time series
 def slicing(file_path, secs):
     """Estrae i primi n secondi della serie temporale."""

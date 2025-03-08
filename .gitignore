@@ -1,5 +1,12 @@
 /dataset/
 /timeseries/
 /partitioning/npy/
-/preprocessing/channel_info.csv
 /training/lstm_test_1
+training/lstm_test_2 
+training/lstm_test_3 
+training/lstm_test_4 
+training/lstm_test_5 
+training/lstm_test_6 
+training/lstm_test_7 
+training/lstm_test_8
+/preprocessing/channel_info.csv
