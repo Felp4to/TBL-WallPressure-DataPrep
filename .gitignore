@@ -2,3 +2,4 @@
 /timeseries/
 /partitioning/npy/
 /preprocessing/channel_info.csv
+/training/lstm_test_1
