@@ -1,4 +1,5 @@
 import os
+import time
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt # type: ignore
@@ -28,7 +29,7 @@ class LSTMModel:
             Dropout(dropout_rate),
             LSTM(lstm_units, return_sequences=return_sequences),
             Dropout(dropout_rate),
-            Dense(output_units)             # Nessuna attivazione per forecasting
+            Dense(output_units)      
         ])
 
         # Compilazione con MSE e RMSE
@@ -36,10 +37,10 @@ class LSTMModel:
                            loss="mse",
                            metrics=["mae", self.root_mean_squared_error])
         
-        self.history = None  # Variabile per salvare la history del training
+        self.history = None  
 
-        self.folder = folder
-        self.create_folder()  # Assicura che la cartella esista
+        self.folder = os.path.join("./tests", folder)
+        self.create_folder() 
 
     @staticmethod
     def root_mean_squared_error(y_true, y_pred):
@@ -66,25 +67,23 @@ class LSTMModel:
     #    return self.history
     
     def train(self, x_train, y_train, epochs=100, batch_size=32, validation_data=None):
-        """Addestra il modello con Early Stopping e Model Checkpoint."""
-        
-        # Definizione dei callback
         early_stopping = EarlyStopping(
-            monitor="val_loss",  # Si basa sulla perdita di validazione
-            patience=10,         # Numero di epoch senza miglioramenti prima di fermarsi
-            restore_best_weights=True  # Ripristina il modello migliore
+            monitor="val_loss",
+            patience=10,
+            restore_best_weights=True
         )
 
         checkpoint_path = os.path.join(self.folder, "best_model.h5")
         model_checkpoint = ModelCheckpoint(
-            checkpoint_path,  # Percorso di salvataggio del miglior modello
+            checkpoint_path,
             monitor="val_loss",
-            save_best_only=True,  # Salva solo se migliora
+            save_best_only=True,
             mode="min",
             verbose=1
         )
 
-        # Avvio del training con i callback
+        start_time = time.time()  # Inizio misurazione tempo di addestramento
+        
         self.history = self.model.fit(
             x_train, y_train,
             epochs=epochs,
@@ -93,9 +92,24 @@ class LSTMModel:
             callbacks=[early_stopping, model_checkpoint]
         )
         
-        print(f"Miglior modello salvato in {checkpoint_path}")
+        training_time = time.time() - start_time  # Tempo totale di addestramento
+        
+        # Salvataggio tempo di addestramento
+        time_path = os.path.join(self.folder, "training_time.txt")
+        with open(time_path, "w") as f:
+            f.write(f"Tempo totale di addestramento: {training_time:.2f} secondi\n")
+        
+        print(f"Tempo totale di addestramento salvato in {time_path}")
+        
+        # Salvataggio della history in un file di testo
+        history_path = os.path.join(self.folder, "training_history.txt")
+        with open(history_path, "w") as f:
+            for key, values in self.history.history.items():
+                f.write(f"{key}: {values}\n")
+        
+        print(f"Training history salvata in {history_path}")
+        
         return self.history
-    
 
     def predict(self, x_test):
         """Genera previsioni."""
@@ -193,10 +207,7 @@ class LSTMModel:
             plt.show()
             print(f"Grafico RMSE salvato in {rmse_plot_path}")
         else:
-            print("RMSE non trovato nella history. Verifica la compilazione del modello.")
-
-
-
+            print("RMSE non trovato nella history. Verifica la compilazione del modello.") 
     
     def plot_predictions(self, y_test, y_pred, slice=50):
         """Confronta le predizioni con i valori di test e salva il grafico."""
