@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt # type: ignore
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import tensorflow as tf
 from tensorflow.keras.models import Sequential # type: ignore
-from tensorflow.keras.layers import LSTM, Dense, Dropout # type: ignore
+from tensorflow.keras.layers import LSTM, Dense, Dropout, Input # type: ignore
 from tensorflow.keras.optimizers import Adam # type: ignore
 from tensorflow.keras import backend as K # type: ignore
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint # type: ignore
@@ -25,11 +25,12 @@ class LSTMModel:
         :param return_sequences: Se True, l'ultimo layer LSTM mantiene la sequenza.
         """
         self.model = Sequential([
-            LSTM(lstm_units, return_sequences=True, input_shape=input_shape),
+            Input(shape=input_shape),  # ✅ Definisce l'input esplicitamente
+            LSTM(lstm_units, return_sequences=True),
             Dropout(dropout_rate),
             LSTM(lstm_units, return_sequences=return_sequences),
             Dropout(dropout_rate),
-            Dense(output_units)      
+            Dense(output_units)
         ])
 
         # Compilazione con MSE e RMSE
@@ -255,13 +256,13 @@ class LSTMModel:
 
     def save_model(self):
         """Salva il modello nella cartella specificata."""
-        model_path = os.path.join(self.folder, "lstm_model.h5")
+        model_path = os.path.join(self.folder, "lstm_model.keras")
         self.model.save(model_path)
         print(f"Modello salvato in {model_path}")
     
     def load_model(self):
         """Carica un modello esistente dalla cartella specificata."""
-        model_path = os.path.join(self.folder, "lstm_model.h5")
+        model_path = os.path.join(self.folder, "lstm_model.keras")
         if os.path.exists(model_path):
             self.model = tf.keras.models.load_model(model_path, custom_objects={"root_mean_squared_error": self.root_mean_squared_error})
             print(f"Modello caricato da {model_path}")

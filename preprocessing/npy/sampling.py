@@ -9,8 +9,9 @@ import pandas as pd
 def slicing(file_path, secs):
     """Estrae i primi n secondi della serie temporale."""
     df = pd.read_csv(file_path)
-    num_samples = int(secs * cs.SAMPLING_RATE)
-    return df[:num_samples]
+    num_samples = secs * cs.SAMPLING_RATE
+    return df["singleData"].iloc[:num_samples]
+
 
 # sampling standard
 def sampling_csv(data_df, sampling_factor):
@@ -27,7 +28,7 @@ def sampling_avg_csv(data_df, sampling_factor):
     return df_reduced
 
 
+# show used memory
 def print_memory_usage(data):
-    # Calcola la memoria totale
     total_memory_gb = data.memory_usage(deep=True).sum() / (1024 ** 3)
     print(f"La memoria totale occupata dal DataFrame è: {total_memory_gb:.2f} GB")

@@ -25,3 +25,16 @@ def normalize_dataframe(df):
     else:
         df['singleData'] = 0                                        # Evita divisione per zero
     return df
+
+# normalization balanced
+def normalize_array(arr):
+    mean_value = np.mean(arr)                                       # Calcola la media
+    centered_array = arr - mean_value                               # Centra l'array attorno a 0
+    max_abs_value = np.max(np.abs(centered_array))                  # Trova il massimo valore assoluto
+    
+    if max_abs_value != 0:
+        normalized_array = centered_array / max_abs_value           # Normalizza tra -1 e 1
+    else:
+        normalized_array = np.zeros_like(arr)                       # Evita divisione per zero
+    
+    return normalized_array

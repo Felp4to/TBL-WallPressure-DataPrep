@@ -2,8 +2,6 @@
 
 # here you can found methods with the purpose to create partitions for the training
 
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 import pandas as pd
 import xgboost as xgb
@@ -13,7 +11,7 @@ import os
 import sys
 
 # Aggiunge la cartella superiore al path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'preprocessing')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'preprocessing', "npy")))
 
 import normalizzation as norm
 
