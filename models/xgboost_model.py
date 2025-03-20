@@ -1,177 +1,228 @@
 import os
 import time
-import json
 import numpy as np
 import pandas as pd
-import xgboost as xgb
 import matplotlib.pyplot as plt
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+import xgboost as xgb
+from joblib import dump, load
 
 
 
 class XGBoostModel:
-    def __init__(self, folder, params=None, num_boost_round=100, early_stopping_rounds=10, window=20):
-
-        self.params = params if params else {
-            'n_estimators': 100,
-            'learning_rate': 0.1,
-            'max_depth': 5,
-            'subsample': 0.8,
-            'colsample_bytree': 0.8,
-            'eval_metric': 'rmse',
-            'objective': "reg:squarederror",
-            'early_stopping_rounds' : 10
-        }
+    def __init__(self, folder, n_estimators=100, learning_rate=0.1, max_depth=6, subsample=0.8, colsample_bytree=0.8, patience=5, output_units=1, eval_metrics=['rmse', 'mae']):
+        self.model = xgb.XGBRegressor(
+            n_estimators=n_estimators,
+            learning_rate=learning_rate,
+            max_depth=max_depth,
+            subsample=subsample,
+            colsample_bytree=colsample_bytree,
+            objective='reg:squarederror',
+            eval_metric=eval_metrics
+        )
         
-        self.model = xgb.XGBRegressor(**self.params, enable_categorical=False)
-        self.num_boost_round = num_boost_round
-        self.early_stopping_rounds = early_stopping_rounds
-        self.window = window
-        self.history = None
-        self.folder = os.path.join("./tests", folder)
+        self.folder = folder
         self.create_folder()
-        self.save_params()
-        
+        self.patience = patience
+        self.output_units = output_units
+        self.history = None
+
     def create_folder(self):
         os.makedirs(self.folder, exist_ok=True)
-
-    def save_params(self):
-        params_path = os.path.join(self.folder, "model_params.json")
-        with open(params_path, "w") as f:
-            json.dump(self.params, f, indent=4)
-        print(f"Parametri del modello salvati in {params_path}")
     
-    def train(self, X_train, y_train, X_val, y_val):
-        eval_set = [(X_train, y_train), (X_val, y_val)]
+    def train(self, x_train, y_train, x_val=None, y_val=None):
         start_time = time.time()
-
-        self.model.fit(
-            X_train, y_train,
-            eval_set=eval_set,
-            # early_stopping_rounds=self.early_stopping_rounds,
-            verbose=True
-        )
-
+        eval_set = [(x_train, y_train)]
+        
+        if x_val is not None and y_val is not None:
+            eval_set.append((x_val, y_val))
+            self.model.fit(
+                x_train, y_train,
+                eval_set=eval_set,
+                verbose=True
+            )
+            self.history = self.model.evals_result()
+        else:
+            self.model.fit(x_train, y_train)
+            self.history = self.model.evals_result()
+        
         training_time = time.time() - start_time
-        self.history = self.model.evals_result()
-
-        # Salva il tempo di addestramento
+        
         time_path = os.path.join(self.folder, "training_time.txt")
         with open(time_path, "w") as f:
             f.write(f"Tempo totale di addestramento: {training_time:.2f} secondi\n")
-        print(f"Tempo totale di addestramento salvato in {time_path}")
-
-        # Salva la cronologia dell'addestramento
-        history_path = os.path.join(self.folder, "training_history.csv")
-        df_history = pd.DataFrame(self.history['validation_0'])
-        df_history.to_csv(history_path, index=False)
-        print(f"Cronologia di addestramento salvata in {history_path}")
-
-        # Salva il modello addestrato
-        self.save_model()
-        self.plot_training_metrics()
-
-    def predict(self, x_test):
-        return self.model.predict(x_test)
-    
-    def evaluate(self, X_test, y_test):
-        y_pred = self.model.predict(X_test)
-
-        mse = mean_squared_error(y_test, y_pred)
-        rmse = np.sqrt(mse)
-        mae = mean_absolute_error(y_test, y_pred)
-        r2 = r2_score(y_test, y_pred)
+        print(f"Tempo di addestramento salvato in {time_path}")
         
-        results = {"MSE": mse, "RMSE": rmse, "MAE": mae, "R2": r2}
-        results_path = os.path.join(self.folder, "evaluation_metrics.csv")
-        pd.DataFrame([results]).to_csv(results_path, index=False)
-        print(f"Metriche salvate in {results_path}")
-        return results
+        self.save_model()
+
+    def save_parameters(self):
+        """ Salva i parametri del modello in un file di testo. """
+        params_path = os.path.join(self.folder, "model_parameters.txt")
+
+        params = {
+            "Folder": self.folder,
+            "N Estimators": self.model.get_params()["n_estimators"],
+            "Learning Rate": self.model.get_params()["learning_rate"],
+            "Max Depth": self.model.get_params()["max_depth"],
+            "Subsample": self.model.get_params()["subsample"],
+            "Colsample by Tree": self.model.get_params()["colsample_bytree"],
+            "Objective": self.model.get_params()["objective"],
+            "Evaluation Metrics": ", ".join(self.model.get_params()["eval_metric"]),
+            "Patience": self.patience,
+            "Output Units": self.output_units
+        }
+
+        with open(params_path, "w") as f:
+            f.write("Parametri del Modello XGBoost:\n")
+            for key, value in params.items():
+                f.write(f"{key}: {value}\n")
+
+        print(f"Parametri salvati in {params_path}")
+
+    def save_training_history_txt(self):
+        if self.history is None:
+            print("Nessuna history disponibile da salvare.")
+            return
+        
+        history_path = os.path.join(self.folder, "training_history.txt")
+        
+        with open(history_path, "w") as f:
+            f.write("Training History:\n\n")
+            metrics = list(self.history['validation_0'].keys())
+            num_rounds = len(self.history['validation_0'][metrics[0]])
+            
+            for i in range(num_rounds):
+                line = f"[{i}]"
+                for dataset in self.history:
+                    for metric in metrics:
+                        value = self.history[dataset][metric][i]
+                        line += f"\t{dataset}-{metric}:{value:.5f}"
+                f.write(line + "\n")
+        
+        print(f"Training history salvata in {history_path}")
+    
+    def predict(self, x_test):
+        y_pred = self.model.predict(x_test)
+        return y_pred.reshape(-1, self.output_units)
     
     def save_model(self):
-        model_path = os.path.join(self.folder, "xgboost_model.json")
-        self.model.save_model(model_path)
+        model_path = os.path.join(self.folder, "xgboost_model.joblib")
+        dump(self.model, model_path)
         print(f"Modello salvato in {model_path}")
     
     def load_model(self):
-        model_path = os.path.join(self.folder, "xgboost_model.json")
+        model_path = os.path.join(self.folder, "xgboost_model.joblib")
         if os.path.exists(model_path):
-            self.model.load_model(model_path)
+            self.model = load(model_path)
             print(f"Modello caricato da {model_path}")
         else:
             print(f"Nessun modello trovato in {model_path}.")
-
-    def plot_training_metrics(self):
-        if self.history is None:
-            print("Nessuna cronologia di addestramento disponibile.")
-            return
+    
+    def evaluate(self, x_test, y_test):
+        y_pred = self.predict(x_test)
         
-        plt.figure(figsize=(10, 5))
-        for metric in self.history['validation_0'].keys():
-            plt.plot(self.history['validation_0'][metric], label=f"Training {metric}")
-            plt.plot(self.history['validation_1'][metric], label=f"Validation {metric}")
+        if y_test.shape != y_pred.shape:
+            raise ValueError(f"Errore: la forma di y_test {y_test.shape} e y_pred {y_pred.shape} non corrisponde.")
         
-        plt.xlabel("Boosting Rounds")
-        plt.ylabel("Metric Value")
-        plt.legend()
-        plt.title("Training and Validation Metrics Over Time")
-        plt.grid()
-        plt.savefig(os.path.join(self.folder, "training_metrics.png"))
-        plt.show()
-        print("Grafico delle metriche di training salvato.")
-
+        num_outputs = y_test.shape[1]
+        detailed_results = {}
+        mean_results = {}
+        
+        if num_outputs == 1:
+            mse = mean_squared_error(y_test, y_pred)
+            rmse = np.sqrt(mse)
+            mae = mean_absolute_error(y_test, y_pred)
+            r2 = r2_score(y_test, y_pred)
+            
+            detailed_results = {
+                "Output": ["Unico"],
+                "MSE": [mse],
+                "RMSE": [rmse],
+                "MAE": [mae],
+                "R2": [r2]
+            }
+            mean_results = detailed_results
+        else:
+            detailed_results["Output"] = [f"Output {i+1}" for i in range(num_outputs)]
+            detailed_results["MSE"] = [mean_squared_error(y_test[:, i], y_pred[:, i]) for i in range(num_outputs)]
+            detailed_results["RMSE"] = [np.sqrt(detailed_results["MSE"][i]) for i in range(num_outputs)]
+            detailed_results["MAE"] = [mean_absolute_error(y_test[:, i], y_pred[:, i]) for i in range(num_outputs)]
+            detailed_results["R2"] = [r2_score(y_test[:, i], y_pred[:, i]) for i in range(num_outputs)]
+            
+            mean_results = {
+                "Output": ["Media"],
+                "MSE": [np.mean(detailed_results["MSE"])],
+                "RMSE": [np.sqrt(np.mean(detailed_results["MSE"]))],
+                "MAE": [np.mean(detailed_results["MAE"])],
+                "R2": [np.mean(detailed_results["R2"])],
+            }
+        
+        detailed_path = os.path.join(self.folder, "evaluation_metrics_detailed.csv")
+        pd.DataFrame(detailed_results).to_csv(detailed_path, index=False)
+        
+        mean_path = os.path.join(self.folder, "evaluation_metrics_mean.csv")
+        pd.DataFrame(mean_results).to_csv(mean_path, index=False)
+        
+        print(f"Metriche dettagliate salvate in: {detailed_path}")
+        print(f"Metriche medie salvate in: {mean_path}")
+        
+        return {"detailed": detailed_results, "mean": mean_results}
+    
+    def save_training_history(self):
+        history_path = os.path.join(self.folder, "training_history.npy")
+        np.save(history_path, self.history)
+        print(f"Training history salvata in {history_path}")
+    
     def compare_predictions(self, y_test, y_pred):
-        """Confronta i valori reali con le predizioni e li salva in un CSV."""
-        comparison_df = pd.DataFrame({
-            "Valore Reale": y_test.flatten(),
-            "Predizione": y_pred.flatten()
-        })
-
+        num_outputs = y_test.shape[1]
+        
+        if num_outputs == 1:
+            comparison_df = pd.DataFrame({
+                "Valore Reale": y_test.flatten(),
+                "Predizione": y_pred.flatten()
+            })
+        else:
+            columns_real = [f"Valore Reale {i+1}" for i in range(num_outputs)]
+            columns_pred = [f"Predizione {i+1}" for i in range(num_outputs)]
+            comparison_df = pd.DataFrame(np.hstack([y_test, y_pred]), columns=columns_real + columns_pred)
+        
         comparison_path = os.path.join(self.folder, "predictions_comparison.csv")
         comparison_df.to_csv(comparison_path, index=False)
-
         print(f"Confronto predizioni salvato in {comparison_path}")
         return comparison_df
-
-    def plot_predictions(self, y_test, y_pred, slice=50):
-        """Confronta le predizioni con i valori di test e salva il grafico."""
-        plt.figure(figsize=(15, 8))
-        plt.plot(y_test[:slice], label='Valori Reali', color='blue')
-        plt.plot(y_pred[:slice], label='Predizioni', color='red', linestyle='dashed')
-        plt.legend()
-        plt.title('Confronto tra Predizioni e Valori Reali')
-
-        # Salva il grafico nella cartella specificata
-        plot_path = os.path.join(self.folder, "predictions_plot_1.png")
-        plt.savefig(plot_path)
-        plt.close()  # Chiude la figura per evitare che resti in memoria
+    
+    def plot_training_metrics(self):
+        if self.history is None:
+            print("Nessuna history trovata. Assicurati di aver eseguito il training con set di validazione.")
+            return
         
-        print(f"Grafico salvato in {plot_path}")
+        metrics = list(self.history['validation_0'].keys())
+        num_epochs = len(next(iter(self.history['validation_0'].values())))
+        epochs = range(num_epochs)
 
-        """Confronta le predizioni con i valori di test e salva il grafico."""
-        plt.figure(figsize=(15, 8))
-        plt.plot(y_test[:slice*4], label='Valori Reali', color='blue')
-        plt.plot(y_pred[:slice*4], label='Predizioni', color='red', linestyle='dashed')
-        plt.legend()
-        plt.title('Confronto tra Predizioni e Valori Reali')
+        for metric in metrics:
+            plt.figure(figsize=(10, 6))
+            
+            # Training set
+            plt.plot(epochs, self.history['validation_0'][metric], label='Train', marker='o')
+            
+            # Validation set (se presente)
+            if 'validation_1' in self.history:
+                plt.plot(epochs, self.history['validation_1'][metric], label='Validation', marker='s')
 
-        # Salva il grafico nella cartella specificata
-        plot_path = os.path.join(self.folder, "predictions_plot_2.png")
-        plt.savefig(plot_path)
-        plt.close()  # Chiude la figura per evitare che resti in memoria
-        
-        print(f"Grafico salvato in {plot_path}")
+            plt.title(f"Andamento della metrica '{metric.upper()}'")
+            plt.xlabel("Numero di alberi (boosting rounds)")
+            plt.ylabel(metric.upper())
+            plt.legend()
+            plt.grid(True)
+            
+            # Mostra il grafico
+            plt.tight_layout()
+            plt.show()
 
-        """Confronta le predizioni con i valori di test e salva il grafico."""
-        plt.figure(figsize=(15, 8))
-        plt.plot(y_test, label='Valori Reali', color='blue')
-        plt.plot(y_pred, label='Predizioni', color='red', linestyle='dashed')
-        plt.legend()
-        plt.title('Confronto tra Predizioni e Valori Reali')
-
-        # Salva il grafico nella cartella specificata
-        plot_path = os.path.join(self.folder, "predictions_plot_tot.png")
-        plt.savefig(plot_path)
-        plt.close()  # Chiude la figura per evitare che resti in memoria
-        
-        print(f"Grafico salvato in {plot_path}")
+            # Salva il grafico
+            filename = f"{metric}_trend.png"
+            plot_path = os.path.join(self.folder, filename)
+            plt.savefig(plot_path)
+            print(f"Grafico '{metric}' salvato in: {plot_path}")
+            plt.close()
