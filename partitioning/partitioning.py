@@ -1,125 +1,295 @@
-# partitioning.py
+# partitioning_2.py
 
-# here you can found methods with the purpose to create partitions for the training
-
-from tqdm import tqdm
-import pandas as pd
-#import xgboost as xgb
-import numpy as np
-import json
 import os
-#import sys
-
-# Aggiunge la cartella superiore al path
-#sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'preprocessing', "npy")))
-
-#import normalizzation as norm
+import json
+import pywt
+import numpy as np
 
 
 
-# used by generators to create partitions
-def sequence_generator(data, seq_length, overlapping, batch_size):
-    step = overlapping if overlapping != 0 else seq_length
-    X, y = [], []
+# 🔀 Shuffle su tutte le partizioni
+def shuffle_data(X, y):
+    idx = np.arange(len(X))
+    np.random.shuffle(idx)
+    return X[idx], y[idx]
+
+# Split delle partizioni train/val/test SENZA leakage, shuffle SOLO sul training set
+def split_and_save_dataset(X, y, foldername, config):
+    assert abs(config['train_ratio'] + config['val_ratio'] + config['test_ratio'] - 1.0) < 1e-6, \
+        "La somma di train_ratio, val_ratio e test_ratio deve essere 1.0"
     
+    # Crea la cartella se non esiste
+    foldername = os.path.join("partitions", foldername)
+    os.makedirs(foldername, exist_ok=True)
+
+    # Salva config in un file JSON
+    config_path = os.path.join(foldername, "config.txt")
+    with open(config_path, 'w') as f:
+        json.dump(config, f, indent=4)
+
+    # Calcola le dimensioni delle partizioni
+    total_samples = len(X)
+    train_end = int(total_samples * config['train_ratio'])
+    val_end = train_end + int(total_samples * config['val_ratio'])
+    
+    # Split sequenziale
+    X_train, y_train = X[:train_end], y[:train_end]
+    X_val, y_val     = X[train_end:val_end], y[train_end:val_end]
+    X_test, y_test   = X[val_end:], y[val_end:]
+
+    if config.get("shuffle", True):
+        X_train, y_train = shuffle_data(X_train, y_train)
+        X_val, y_val     = shuffle_data(X_val, y_val)
+        X_test, y_test   = shuffle_data(X_test, y_test)
+
+    # Salva le partizioni
+    np.savetxt(os.path.join(foldername, "X_train.csv"), X_train, delimiter=",")
+    np.savetxt(os.path.join(foldername, "y_train.csv"), y_train, delimiter=",")
+    np.savetxt(os.path.join(foldername, "X_val.csv"),   X_val,   delimiter=",")
+    np.savetxt(os.path.join(foldername, "y_val.csv"),   y_val,   delimiter=",")
+    np.savetxt(os.path.join(foldername, "X_test.csv"),  X_test,  delimiter=",")
+    np.savetxt(os.path.join(foldername, "y_test.csv"),  y_test,  delimiter=",")
+
+    # Info partizioni
+    info = (
+        f"Totale campioni: {total_samples}\n"
+        f"Train set: X = {X_train.shape}, y = {y_train.shape}\n"
+        f"Validation set: X = {X_val.shape}, y = {y_val.shape}\n"
+        f"Test set: X = {X_test.shape}, y = {y_test.shape}\n"
+    )
+
+    # Salva info
+    with open(os.path.join(foldername, "partitions_info.txt"), 'w') as f:
+        f.write(info)
+
+    print(info.strip())
+    print(f"\n✅ Partizioni create e salvate in '{foldername}'")
+
+
+# Ogni sequenza è composta da una sequenza di valori di pressione, e il target è il valore successivo
+def generate_time_sequences(df, config):
+    seq_length = config["seq_length"]
+    overlap = config["overlapping"]
+    step = int(seq_length * (1 - overlap) + 1) if overlap > 0 else seq_length + 1
+
+    data = df.values
+    X, y = [], []
+
     for i in range(0, len(data) - seq_length, step):
         X.append(data[i:i+seq_length])
         y.append(data[i+seq_length])
-        
-        if len(X) == batch_size:
-            yield np.array(X), np.array(y)
-            X, y = [], []
+
+    X = np.array(X)
+    y = np.array(y)
+
+    return X, y
+
+
+# Ogni sequenza è composta da più finestre trasformate con Fourier, e il target è la finestra successiva alla sequenza
+def generate_fft_sequences_with_frequency_target(ts, config):
+    X = []
+    y = []
+
+    window_size = config['window_size']
+    sequence_length = config['seq_length']
+    overlap = config['overlapping']
+
+    base_step = window_size * sequence_length + window_size
+    assert 0 <= overlap < 1, "overlap deve essere un valore tra 0 e 1 (escluso 1)"
     
-    if X:
-        yield np.array(X), np.array(y)
+    # Calcola lo step effettivo con overlapping
+    step = int(base_step * (1 - overlap)) if overlap > 0 else base_step
+
+    max_start = len(ts) - (window_size * sequence_length + window_size)
+
+    for start in range(0, max_start + 1, step):
+        features = []
+        valid = True
+
+        for k in range(sequence_length):
+            start_index = start + k * window_size
+            end_index = start_index + window_size
+
+            if end_index > len(ts):
+                valid = False
+                break
+
+            window = ts[start_index:end_index]
+            fft_window = np.fft.fft(window)
+            fft_features = np.concatenate([np.real(fft_window), np.imag(fft_window)])
+            features.append(fft_features)
+
+        if not valid:
+            break
+
+        # Target = finestra subito dopo l'ultima finestra di input
+        target_start = start + window_size * sequence_length
+        target_end = target_start + window_size
+        if target_end > len(ts):
+            break
+
+        target_window = ts[target_start:target_end]
+        fft_target = np.fft.fft(target_window)
+        target_features = np.concatenate([np.real(fft_target), np.imag(fft_target)])
+
+        X.append(np.concatenate(features))
+        y.append(target_features)
+
+    X = np.array(X)
+    y = np.array(y)
+
+    print(f"Shape di X: {X.shape}")
+    print(f"Shape di y: {y.shape}")
+
+    return X, y
 
 
-# create partitions with generators paying attention to the memory occupancy
-def create_partitions_with_generators(df, config, folder_path):
+# Ogni sequenza è composta da più finestre trasformate con Fourier, e il target è il valore temporale successivo alla sequenza.
+def generate_fft_sequences_with_temporal_target(ts, config):  
+    X = []
+    y = []
+
+    window_size = config['window_size']
+    sequence_length = config['seq_length']
+    overlap = config['overlapping']
+
+    base_step = window_size * sequence_length + 1
+    assert 0 <= overlap < 1, "overlap deve essere un valore tra 0 e 1 (escluso 1)"
+
+    # Calcola lo step effettivo con overlapping
+    step = int(base_step * (1 - overlap)) if overlap > 0 else base_step
+
+    max_start = len(ts) - (window_size * sequence_length + 1)
     
-    # Suddivisione del dataset
-    total_samples = len(df) - config["seq_length"]
-    val_test_samples = int(total_samples * config["test_ratio"])
-    train_samples = total_samples - 2 * val_test_samples
+    for start in range(0, max_start + 1, step):
+        features = []
+        valid = True
+
+        for k in range(sequence_length):
+            start_index = start + k * window_size
+            end_index = start_index + window_size
+
+            if end_index > len(ts):
+                valid = False
+                break
+
+            window = ts[start_index:end_index]
+            fft_window = np.fft.fft(window)
+            fft_features = np.concatenate([np.real(fft_window), np.imag(fft_window)])
+            features.append(fft_features)
+
+        if not valid:
+            break
+
+        target_index = start + window_size * sequence_length
+        if target_index >= len(ts):
+            break
+
+        X.append(np.concatenate(features))
+        y.append(ts[target_index])
+
+    X = np.array(X)
+    y = np.array(y)
+
+    print(f"Shape di X: {X.shape}")
+    print(f"Shape di y: {y.shape}")
+
+    return X, y
+
+
+# Ogni sequenza è composta da più finestre trasformate con Wavelet, e il target è la finestra successiva alla sequenza.
+def generate_wavelet_sequences_with_wavelet_target(ts, config):
+    window_size = config['window_size']
+    overlapping = config['overlapping']
+    wavelet = config.get('wavelet', 'db4')
+    level = config.get('wavelet_level', 3)
+    seq_length = config['seq_length']
+
+    assert 0.0 <= overlapping < 1.0, "overlapping deve essere tra 0 (incluso) e 1 (escluso)"
+    step_size = max(1, int(window_size * (1 - overlapping)))
+
+    # Calcolo coefficienti wavelet per tutte le finestre
+    wavelet_windows = []
+    for i in range(0, len(ts) - window_size + 1, step_size):
+        window = ts[i:i + window_size]
+        coeffs = pywt.wavedec(window, wavelet=wavelet, level=level)
+        features = np.concatenate(coeffs)
+        wavelet_windows.append(features)
+
+    wavelet_windows = np.array(wavelet_windows)
+    num_windows = wavelet_windows.shape[0]
+    num_coeff = wavelet_windows.shape[1]
+
+    print("wavelet_windows: ", len(wavelet_windows))
+    print("num_windows: ", num_windows)
+    print("num_coeff: ", num_coeff)
     
-    train_gen = sequence_generator(df.values[:train_samples], config["seq_length"], config["overlapping"], config["batch_size"])
-    val_gen = sequence_generator(df.values[train_samples:train_samples + val_test_samples], config["seq_length"], config["overlapping"], config["batch_size"])
-    test_gen = sequence_generator(df.values[train_samples + val_test_samples:], config["seq_length"], config["overlapping"], config["batch_size"])
-    
-    # Creazione della cartella per salvare i file
-    folder_path = os.path.join('npy', folder_path)
-    os.makedirs(folder_path, exist_ok=True)
-    
-    data_partitions = {
-        "train": train_gen,
-        "val": val_gen,
-        "test": test_gen
-    }
-    
-    shapes = {}
-    
-    for partition in data_partitions:
-        X_file = os.path.join(folder_path, f'X_{partition}.csv')
-        y_file = os.path.join(folder_path, f'y_{partition}.csv')
+    X = []
+    y = []
+    stride = seq_length + 1
 
-        temp_csv_files = []  # Lista per file temporanei
-        batch_idx = 0
+    for i in range(0, num_windows - stride + 1, stride):
+        X_seq = wavelet_windows[i:i + seq_length].flatten()
+        y_seq = wavelet_windows[i + seq_length]
+        X.append(X_seq)
+        y.append(y_seq)
 
-        # Iterazione sui batch
-        for X_batch, y_batch in tqdm(data_partitions[partition], desc=f"Salvataggio {partition.capitalize()}", unit="batch"):
-            temp_X_file = f"{X_file}_temp_{batch_idx}.csv"
-            temp_y_file = f"{y_file}_temp_{batch_idx}.csv"
+    return np.array(X), np.array(y)
 
-            # Salvataggio temporaneo dei batch
-            pd.DataFrame(X_batch).to_csv(temp_X_file, index=False, header=False)
-            pd.DataFrame(y_batch).to_csv(temp_y_file, index=False, header=False)
 
-            temp_csv_files.append((temp_X_file, temp_y_file))
-            batch_idx += 1
+# Ogni sequenza è composta da più finestre trasformate con Wavelet, e il target è il valore temporale successivo alla sequenza.
+def generate_wavelet_sequences_with_temporal_target(ts, config):
+    X = []
+    y = []
 
-        print(f"Unione dei file temporanei per {partition} in un unico file CSV...")
+    window_size = config['window_size']
+    sequence_length = config['seq_length']
+    overlap = config['overlapping']
+    wavelet_level = config['wavelet_level']
+    wavelet = config['wavelet']
 
-        # Unione dei file temporanei in un unico dataset
-        X_data = []
-        y_data = []
-        
-        for temp_X_file, temp_y_file in temp_csv_files:
-            X_data.append(pd.read_csv(temp_X_file, header=None).values)
-            y_data.append(pd.read_csv(temp_y_file, header=None).values.flatten())
+    base_step = window_size * sequence_length + 1
+    assert 0 <= overlap < 1, "overlap deve essere un valore tra 0 e 1 (escluso 1)"
 
-            os.remove(temp_X_file)  # Eliminazione del file temporaneo
-            os.remove(temp_y_file)  # Eliminazione del file temporaneo
+    step = int(base_step * (1 - overlap)) if overlap > 0 else base_step
+    max_start = len(ts) - (window_size * sequence_length + 1)
 
-        # Concatenazione dei batch
-        X_data = np.vstack(X_data)
-        y_data = np.hstack(y_data)
+    for start in range(0, max_start + 1, step):
+        features = []
+        valid = True
 
-        shapes[partition] = (X_data.shape, y_data.shape)
+        for k in range(sequence_length):
+            start_index = start + k * window_size
+            end_index = start_index + window_size
 
-        # Salvataggio dei dati in formato CSV
-        pd.DataFrame(X_data).to_csv(X_file, index=False, header=[f"feature_{i}" for i in range(config["seq_length"])] if config["csv_format"] else False)
-        pd.DataFrame(y_data, columns=["target"]).to_csv(y_file, index=False)
-        
-        print(f"✅ File CSV per {partition} salvati correttamente: {X_file}, {y_file}")
+            if end_index > len(ts):
+                valid = False
+                break
 
-    # Salvataggio delle shapes in un file di testo
-    shapes_file = os.path.join(folder_path, "shapes.txt")
-    with open(shapes_file, "w") as f:
-        f.write("Shapes finali delle partizioni:\n")
-        for partition, (X_shape, y_shape) in shapes.items():
-            f.write(f"{partition}: X -> {X_shape}, y -> {y_shape}\n")
-    
-    print(f"📏 Shapes finali delle partizioni salvate in {shapes_file}")
-    
-    # Percorso completo del file
-    config_path = os.path.join(folder_path, "config.json")
+            window = ts[start_index:end_index]
 
-    # Salvataggio in JSON
-    with open(config_path, "w") as file:
-        json.dump(config, file, indent=4)
+            # Applica la trasformata wavelet discreta
+            coeffs = pywt.wavedec(window, wavelet=wavelet, level=wavelet_level)
+            wavelet_features = np.concatenate(coeffs)
+            features.append(wavelet_features)
 
-    print(f"Configurazione salvata in {config_path}")
-    print(f'I file sono stati salvati in {folder_path}')
+        if not valid:
+            break
+
+        target_index = start + window_size * sequence_length
+        if target_index >= len(ts):
+            break
+
+        X.append(np.concatenate(features))
+        y.append(ts[target_index])
+
+    X = np.array(X)
+    y = np.array(y)
+
+    print(f"Shape di X: {X.shape}")
+    print(f"Shape di y: {y.shape}")
+
+    return X, y
 
 
 

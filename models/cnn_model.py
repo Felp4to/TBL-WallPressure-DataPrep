@@ -3,49 +3,50 @@ import json
 import time
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt # type: ignore
+import matplotlib.pyplot as plt
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import tensorflow as tf
-from tensorflow.keras.models import Sequential # type: ignore
-from tensorflow.keras.layers import LSTM, Dense, Dropout, Input # type: ignore
-from tensorflow.keras.optimizers import Adam # type: ignore
-from tensorflow.keras import backend as K # type: ignore
-from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint # type: ignore
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Conv1D, Dense, Dropout, Flatten, Input
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras import backend as K
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 
 
-
-class LSTMModel:
-    def __init__(self, input_shape, folder, lstm_units=50, output_units=1, dropout_rate=0.2, learning_rate=0.001, return_sequences=False, patience=10):
+class CNNModel:
+    def __init__(self, input_shape, folder, num_filters=64, kernel_size=3, output_units=1,
+                 dropout_rate=0.2, learning_rate=0.001, patience=10):
         
         ### FIELDS ###
 
         # model
         self.model = Sequential([
             Input(shape=input_shape),
-            LSTM(lstm_units, return_sequences=True),
+            Conv1D(filters=num_filters, kernel_size=kernel_size, activation='relu'),
             Dropout(dropout_rate),
-            LSTM(lstm_units, return_sequences=return_sequences),
+            Conv1D(filters=num_filters, kernel_size=kernel_size, activation='relu'),
             Dropout(dropout_rate),
+            Flatten(),
+            Dense(128, activation='relu'),
             Dense(output_units)
         ])
 
-        # compile with metrics mse and rmse
+        # compile# compile with metrics mse and rmse
         self.model.compile(optimizer=Adam(learning_rate=learning_rate),
                            loss="mse",
                            metrics=["mae", self.root_mean_squared_error])
-        
+
         # base fields
         self.input_shape = input_shape
         self.folder = folder
-        self.lstm_units = lstm_units
+        self.num_filters = num_filters
+        self.kernel_size = kernel_size
         self.output_units = output_units
-        self.max_epochs = None
-        self.batch_size = None
         self.dropout_rate = dropout_rate
         self.learning_rate = learning_rate
-        self.return_sequences = return_sequences
         self.patience = patience
-        
+        self.max_epochs = None
+
         # evaluation fields
         self.history = None
         self.metrics = None
@@ -54,11 +55,12 @@ class LSTMModel:
 
         # methods
         self.create_results_folder(folder) 
-
+        
 
     @staticmethod
     def root_mean_squared_error(y_true, y_pred):
         return K.sqrt(K.mean(K.square(y_pred - y_true)))
+    
 
     ###################
     ### GET METHODS ###
@@ -66,14 +68,13 @@ class LSTMModel:
     def get_model_params(self):
         return {
             'input_shape': self.input_shape,
-            'lstm_units': self.lstm_units,
+            'num_filters': self.num_filters,
+            'kernel_size': self.kernel_size,
             'output_units': self.output_units,
-            'max_epochs': self.max_epochs,
-            'batch_size': self.batch_size,
             'dropout_rate': self.dropout_rate,
             'learning_rate': self.learning_rate,
-            'return_sequences': self.return_sequences,
-            'patience': self.patience 
+            'patience': self.patience,
+            'max_epochs': self.max_epochs
         }
     
     # restituisce le metriche del trained model
@@ -117,36 +118,28 @@ class LSTMModel:
         history_dict = self.get_history().history 
         summary.update(history_dict) # Update summary with history_dict
         return summary
-    
+
+
 
     #################
     ### TRAINING  ###
 
-    # training method
     def train(self, x_train, y_train, epochs=100, batch_size=32, validation_data=None):
+
         # set max epochs and batch size
         self.epochs = epochs
         self.batch_size = batch_size
 
         # define early stopping
-        early_stopping = EarlyStopping(
-            monitor="val_loss",
-            patience=self.patience,
-            restore_best_weights=True
-        )
+        early_stopping = EarlyStopping(monitor="val_loss", patience=self.patience, restore_best_weights=True)
 
         # defien checkpoint system
         checkpoint_path = os.path.join(self.folder, "best_model.keras")
-        model_checkpoint = ModelCheckpoint(
-            checkpoint_path,
-            monitor="val_loss",
-            save_best_only=True,
-            mode="min",
-            verbose=1
-        )
+        model_checkpoint = ModelCheckpoint(checkpoint_path, monitor="val_loss",
+                                           save_best_only=True, mode="min", verbose=1)
 
         # set the train start time
-        start_time = time.time()  
+        start_time = time.time()
 
         # fit
         self.history = self.model.fit(
@@ -158,19 +151,19 @@ class LSTMModel:
         )
 
         # compute training time
-        self.training_time =  time.time() - start_time
-        
+        self.training_time = time.time() - start_time
+
         # trainign epochs
         self.epochs = len(self.history.epoch)
 
-
+    
     ##########################################
     ### PREDICTIONS AND EVALUATION METHODS ###
 
     # compute predictions
     def predict(self, x_test):
         return self.model.predict(x_test)
-    
+
     # compute metrics 
     def evaluate(self, x_test, y_test):
         # compute predictions
@@ -239,27 +232,25 @@ class LSTMModel:
         comparison_df.to_csv(comparison_path, index=False)
         print(f"Confronto predizioni salvato in {comparison_path}")
         return comparison_df
-    
+
+
     ###########################
     ### SAVE AND LOAD MODEL ###
 
     def save_model(self):
-        """Salva il modello nella cartella specificata."""
-        model_path = os.path.join(self.folder, "lstm_model.keras")
+        model_path = os.path.join(self.folder, "cnn_model.keras")
         self.model.save(model_path)
         print(f"Modello salvato in {model_path}")
-    
 
     def load_model(self):
-        """Carica un modello esistente dalla cartella specificata."""
-        model_path = os.path.join(self.folder, "lstm_model.keras")
+        model_path = os.path.join(self.folder, "cnn_model.keras")
         if os.path.exists(model_path):
             self.model = tf.keras.models.load_model(model_path, custom_objects={"root_mean_squared_error": self.root_mean_squared_error})
             print(f"Modello caricato da {model_path}")
         else:
             print(f"Nessun modello trovato in {model_path}.")
 
-    
+
    #################
     ### UTILITIES ###
 

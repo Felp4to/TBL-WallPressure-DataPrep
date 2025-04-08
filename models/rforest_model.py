@@ -1,141 +1,205 @@
 import os
 import time
-import json
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+import joblib
 
 
 class RandomForestModel:
-    def __init__(self, folder, n_estimators=100, max_depth=None, random_state=42, window=20):
-        self.params = {
-            'n_estimators': n_estimators,
-            'max_depth': max_depth,
-            'random_state': random_state
+    def __init__(self, folder, n_estimators=100, max_depth=None, random_state=42):
+
+    ### FIELDS ###
+
+         # model
+        self.model = RandomForestRegressor(
+            n_estimators=n_estimators,
+            oob_score=True,
+            max_depth=max_depth,
+            random_state=random_state
+        )
+
+        # base fields
+        self.folder = folder
+        self.n_estimators = n_estimators
+        self.max_depth = max_depth
+        
+        # evaluation fields
+        self.metrics = None
+        self.training_time = None
+        
+        # methods
+        self.create_results_folder(folder)
+
+
+    ###################
+    ### GET METHODS ###
+
+    # restituisce i parametri del modello
+    def get_model_params(self):
+        return {
+            'n_estimators': self.n_estimators,
+            'max_depth': self.max_depth,
         }
-        self.model = RandomForestRegressor(n_estimators=n_estimators, max_depth=max_depth, random_state=random_state)
-        self.window = window
-        self.folder = os.path.join("./tests", folder)
-        self.create_folder()
-        self.save_params()
+
+    def get_obs_score(self):
+        return {
+            'oob_score': self.model.oob_score_
+        }
     
-    def create_folder(self):
-        os.makedirs(self.folder, exist_ok=True)
+    # restituisce il training time
+    def get_training_time(self):
+        return {
+            'training_time': self.training_time
+        }
+    
+    # restituisce le metriche del trained model
+    def get_metrics_summary(self):
+        return {
+            'output': self.metrics["Output"][0],
+            'mse': self.metrics["MSE"][0],
+            'rmse': self.metrics["RMSE"][0],
+            'mae': self.metrics["MAE"][0],
+            'r2': self.metrics["R2"][0]
+        }
+    
+    # restituisce tutte le informazioni
+    def get_full_summary(self):
+        summary = {}
+        summary.update(self.get_model_params())
+        summary.update(self.get_obs_score())
+        summary.update(self.get_metrics_summary())
+        summary.update(self.get_training_time())
+        return summary
+    
 
-    def save_params(self):
-        params_path = os.path.join(self.folder, "model_params.json")
-        with open(params_path, "w") as f:
-            json.dump(self.params, f, indent=4)
-        print(f"Parametri del modello salvati in {params_path}")
-        
-        self.save_model()
 
-    def train(self, X_train, y_train, X_val, y_val):
+    #################
+    ### TRAINING  ###
+
+    # training method
+    def train(self, x_train, y_train):
+        # set starting time
         start_time = time.time()
-        
-        self.model.fit(X_train, y_train.ravel())
-        
-        val_errors = []
-        train_sizes = np.linspace(0.1, 1.0, 100)  # Simuliamo 100 step di training progressivo
-        
-        for size in train_sizes:
-            subset_size = int(size * len(X_train))
-            self.model.fit(X_train[:subset_size], y_train[:subset_size].ravel())
-            y_val_pred = self.model.predict(X_val)
-            val_mse = mean_squared_error(y_val, y_val_pred)
-            val_errors.append(val_mse)
-        
-        self.save_training_errors(train_sizes, val_errors)
-        
-        training_time = time.time() - start_time
-        
-        time_path = os.path.join(self.folder, "training_time.txt")
-        with open(time_path, "w") as f:
-            f.write(f"Tempo totale di addestramento: {training_time:.2f} secondi\n")
-        print(f"Tempo totale di addestramento salvato in {time_path}")
-        
-        self.plot_training_curve(train_sizes, val_errors)
-        self.save_model()
-        
-    def save_training_errors(self, train_sizes, val_errors):
-        errors_df = pd.DataFrame({"Training Size": train_sizes * len(train_sizes), "Validation MSE": val_errors})
-        errors_path = os.path.join(self.folder, "training_errors.csv")
-        errors_df.to_csv(errors_path, index=False)
-        print(f"Andamento dell'errore salvato in {errors_path}")
 
-    def plot_training_curve(self, train_sizes, val_errors):
-        plt.figure(figsize=(10, 5))
-        plt.plot(train_sizes * len(train_sizes), val_errors, marker='o', linestyle='--', color='r', label='Validation MSE')
-        plt.xlabel("Numero di campioni di training")
-        plt.ylabel("Mean Squared Error (MSE)")
-        plt.title("Andamento dell'errore di validazione")
-        plt.legend()
-        plt.grid()
-        plot_path = os.path.join(self.folder, "training_curve.png")
-        plt.savefig(plot_path)
-        plt.close()
-        print(f"Grafico dell'andamento dell'errore di validazione salvato in {plot_path}")
+        # fit
+        self.model.fit(x_train, y_train)
+
+        # compute training time
+        self.training_time = time.time() - start_time
+
+        # observe score
+        print("OOB Score:", self.model.oob_score_)
+
+        
+    ##########################################
+    ### PREDICTIONS AND EVALUATION METHODS ###
     
+    # compute predictions
     def predict(self, x_test):
         return self.model.predict(x_test)
-    
-    def evaluate(self, X_test, y_test):
+
+
+    # evaluation method
+    def evaluate(self, x_test, y_test):
+        # predictions
+        y_pred = self.predict(x_test)
+
+        # handling of the two cases, monofactorial or multifactorial output
+        num_outputs = y_test.shape[1]
+
+        if num_outputs == 1:
+            y_test = y_test.reshape(-1, 1)
+            y_pred = y_pred.reshape(-1, 1)
+
+        detailed_results = {}
+
+        if num_outputs == 1:
+            mse = mean_squared_error(y_test, y_pred)
+            rmse = np.sqrt(mse)
+            mae = mean_absolute_error(y_test, y_pred)
+            r2 = r2_score(y_test, y_pred)
+
+            self.metrics = {
+                "Output": ["Unico"],
+                "MSE": [mse],
+                "RMSE": [rmse],
+                "MAE": [mae],
+                "R2": [r2]
+            }
+        else:
+            detailed_results["Output"] = [f"Output {i+1}" for i in range(num_outputs)]
+            detailed_results["MSE"] = [mean_squared_error(y_test[:, i], y_pred[:, i]) for i in range(num_outputs)]
+            detailed_results["RMSE"] = [np.sqrt(mse) for mse in detailed_results["MSE"]]
+            detailed_results["MAE"] = [mean_absolute_error(y_test[:, i], y_pred[:, i]) for i in range(num_outputs)]
+            detailed_results["R2"] = [r2_score(y_test[:, i], y_pred[:, i]) for i in range(num_outputs)]
+
+            self.metrics = {
+                "Output": ["Media"],
+                "MSE": [np.mean(detailed_results["MSE"])],
+                "RMSE": [np.mean(detailed_results["RMSE"])],
+                "MAE": [np.mean(detailed_results["MAE"])],
+                "R2": [np.mean(detailed_results["R2"])]
+            }
+
+    # compare predictions with true values
+    def compare_predictions(self, X_test, y_test):
+        # make predictions
         y_pred = self.predict(X_test)
 
-        mse = mean_squared_error(y_test, y_pred)
-        rmse = np.sqrt(mse)
-        mae = mean_absolute_error(y_test, y_pred)
-        r2 = r2_score(y_test, y_pred)
+        # handling of the two cases, monofactorial or multifactorial output
+        num_outputs = y_test.shape[1]
         
-        results = {"MSE": mse, "RMSE": rmse, "MAE": mae, "R2": r2}
-        results_path = os.path.join(self.folder, "evaluation_metrics_test_set.csv")
-        pd.DataFrame([results]).to_csv(results_path, index=False)
-        print(f"Metriche salvate in {results_path}")
-        return results
-    
-    def save_model(self):
-        model_path = os.path.join(self.folder, "random_forest_model.pkl")
-        pd.to_pickle(self.model, model_path)
-        print(f"Modello salvato in {model_path}")
-    
-    def load_model(self):
-        model_path = os.path.join(self.folder, "random_forest_model.pkl")
-        if os.path.exists(model_path):
-            self.model = pd.read_pickle(model_path)
-            print(f"Modello caricato da {model_path}")
+        if num_outputs == 1:
+            comparison_df = pd.DataFrame({
+                "Real Values": y_test.flatten(),
+                "Predicted Values": y_pred.flatten()
+            })
         else:
-            print(f"Nessun modello trovato in {model_path}.")
-    
-    def compare_predictions(self, y_test, y_pred):
-        comparison_df = pd.DataFrame({
-            "Valore Reale": y_test.flatten(),
-            "Predizione": y_pred.flatten()
-        })
-
+            columns_real = [f"Valore Reale {i+1}" for i in range(num_outputs)]
+            columns_pred = [f"Predizione {i+1}" for i in range(num_outputs)]
+            comparison_df = pd.DataFrame(np.hstack([y_test, y_pred]), columns=columns_real + columns_pred)
+        
         comparison_path = os.path.join(self.folder, "predictions_comparison.csv")
         comparison_df.to_csv(comparison_path, index=False)
         print(f"Confronto predizioni salvato in {comparison_path}")
         return comparison_df
+    
 
-    def plot_predictions(self, y_test, y_pred, slice=50):
-        plt.figure(figsize=(15, 8))
-        plt.plot(y_test[:slice], label='Valori Reali', color='blue')
-        plt.plot(y_pred[:slice], label='Predizioni', color='red', linestyle='dashed')
-        plt.legend()
-        plt.title('Confronto tra Predizioni e Valori Reali')
-        plot_path = os.path.join(self.folder, "predictions_plot_1.png")
-        plt.savefig(plot_path)
-        plt.close()
-        print(f"Grafico salvato in {plot_path}")
+    ###########################
+    ### SAVE AND LOAD MODEL ###
 
-        plt.figure(figsize=(15, 8))
-        plt.plot(y_test, label='Valori Reali', color='blue')
-        plt.plot(y_pred, label='Predizioni', color='red', linestyle='dashed')
-        plt.legend()
-        plt.title('Confronto tra Predizioni e Valori Reali')
-        plot_path = os.path.join(self.folder, "predictions_plot_tot.png")
-        plt.savefig(plot_path)
-        plt.close()
-        print(f"Grafico salvato in {plot_path}")
+    def save_model(self):
+        """Salva il modello addestrato."""
+        path = os.path.join(self.folder, "random_forest_model.pkl")
+        joblib.dump(self.model, path)
+        print(f"Modello salvato in {path}")
+
+    def load_model(self):
+        """Carica un modello esistente."""
+        path = os.path.join(self.folder, "random_forest_model.pkl")
+        if os.path.exists(path):
+            self.model = joblib.load(path)
+            print(f"Modello caricato da {path}")
+        else:
+            print("Modello non trovato.")
+
+
+    #################
+    ### UTILITIES ###
+
+    # create folder results
+    def create_results_folder(self, folder):
+        os.makedirs(folder, exist_ok=True)
+
+
+
+
+
+
+
+
+
+
+

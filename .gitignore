@@ -1,5 +1,6 @@
+/tests
 /dataset/
 /timeseries/
-/partitioning/npy/
-training/tests
+/partitioning/partitions/
+/training/tests
 /preprocessing/channel_info.csv

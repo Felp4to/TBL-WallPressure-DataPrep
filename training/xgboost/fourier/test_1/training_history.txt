@@ -1,4 +1,0 @@
-Training History:
-
-[0]	validation_0-rmse:0.25592	validation_0-mae:0.15586	validation_1-rmse:0.25109	validation_1-mae:0.15338
-[1]	validation_0-rmse:0.24436	validation_0-mae:0.14972	validation_1-rmse:0.23998	validation_1-mae:0.14751
