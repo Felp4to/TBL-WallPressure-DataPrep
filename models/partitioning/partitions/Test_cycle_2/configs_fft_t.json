@@ -1,0 +1,149 @@
+{
+    "config_1": {
+        "id": 1,
+        "seq_length": 10,
+        "dim_slice": 5,
+        "sampling": 4,
+        "overlapping": 0,
+        "window_size": 16,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15,
+        "random_seed": 42
+    },
+    "config_2": {
+        "id": 2,
+        "seq_length": 20,
+        "dim_slice": 5,
+        "sampling": 4,
+        "overlapping": 0,
+        "window_size": 16,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15,
+        "random_seed": 42
+    },
+    "config_3": {
+        "id": 3,
+        "seq_length": 50,
+        "dim_slice": 5,
+        "sampling": 4,
+        "overlapping": 0,
+        "window_size": 16,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15,
+        "random_seed": 42
+    },
+    "config_4": {
+        "id": 4,
+        "seq_length": 100,
+        "dim_slice": 5,
+        "sampling": 4,
+        "overlapping": 0,
+        "window_size": 16,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15,
+        "random_seed": 42
+    },
+    "config_5": {
+        "id": 5,
+        "seq_length": 200,
+        "dim_slice": 5,
+        "sampling": 4,
+        "overlapping": 0,
+        "window_size": 16,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15,
+        "random_seed": 42
+    },
+    "config_6": {
+        "id": 6,
+        "seq_length": 20,
+        "dim_slice": 5,
+        "sampling": 4,
+        "overlapping": 0,
+        "window_size": 32,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15,
+        "random_seed": 42
+    },
+    "config_7": {
+        "id": 7,
+        "seq_length": 20,
+        "dim_slice": 5,
+        "sampling": 4,
+        "overlapping": 0,
+        "window_size": 64,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15,
+        "random_seed": 42
+    },
+    "config_8": {
+        "id": 8,
+        "seq_length": 20,
+        "dim_slice": 5,
+        "sampling": 4,
+        "overlapping": 0,
+        "window_size": 96,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15,
+        "random_seed": 42
+    },
+    "config_9": {
+        "id": 9,
+        "seq_length": 20,
+        "dim_slice": 5,
+        "sampling": 4,
+        "overlapping": 0,
+        "window_size": 8,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15,
+        "random_seed": 42
+    },
+    "config_10": {
+        "id": 10,
+        "seq_length": 20,
+        "dim_slice": 5,
+        "sampling": 4,
+        "overlapping": 0,
+        "window_size": 4,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15,
+        "random_seed": 42
+    },
+    "config_11": {
+        "id": 11,
+        "seq_length": 20,
+        "dim_slice": 5,
+        "sampling": 4,
+        "overlapping": 0.4,
+        "window_size": 16,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15,
+        "random_seed": 42
+    }
+    ,
+    "config_12": {
+        "id": 12,
+        "seq_length": 20,
+        "dim_slice": 5,
+        "sampling": 4,
+        "overlapping": 0.8,
+        "window_size": 16,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15,
+        "random_seed": 42
+    }
+}
+
+

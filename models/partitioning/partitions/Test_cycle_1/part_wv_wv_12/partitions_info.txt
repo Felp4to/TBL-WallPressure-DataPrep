@@ -1,0 +1,4 @@
+Totale campioni: 4063
+Train set: X = (2844, 720), y = (2844, 36)
+Validation set: X = (609, 720), y = (609, 36)
+Test set: X = (610, 720), y = (610, 36)
