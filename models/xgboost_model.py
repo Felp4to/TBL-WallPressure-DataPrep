@@ -9,10 +9,10 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
 
 class XGBoostModel:
-    def __init__(self, folder, n_estimators=100, learning_rate=0.1, max_depth=6, 
-                subsample=0.8, colsample_bytree=0.8, patience=10, output_units=1,
+    def __init__(self, folder, n_estimators=1000, learning_rate=0.1, max_depth=3, 
+                subsample=0.6, colsample_bytree=0.6, patience=15, output_units=1, reg_alpha=1.0, reg_lambda=1.0,
                 objective='reg:squarederror', eval_metrics=['rmse', 'mae'], tree_method='auto'):
-
+    
     ### FIELDS ###
 
         # model
@@ -36,6 +36,8 @@ class XGBoostModel:
         self.colsample_bytree = colsample_bytree
         self.patience = patience
         self.output_units = output_units
+        self.reg_alpha = reg_alpha
+        self.reg_lambda = reg_lambda
         self.objective = objective
         self.eval_metrics = eval_metrics
         self.tree_method = tree_method
@@ -93,7 +95,9 @@ class XGBoostModel:
             'mse': self.metrics["MSE"][0],
             'rmse': self.metrics["RMSE"][0],
             'mae': self.metrics["MAE"][0],
-            'r2': self.metrics["R2"][0]
+            'r2': self.metrics["R2"][0],
+            'mape (%)': self.metrics["MAPE (%)"][0],
+            'smape (%)': self.metrics["sMAPE (%)"][0]
         }
     
     # restituisce tutte le informazioni
@@ -131,7 +135,7 @@ class XGBoostModel:
             evals.append((dval, 'eval'))
         else:
             dval = None
-
+        
         # base parameters
         params = {
             'objective': 'reg:squarederror',
@@ -161,9 +165,6 @@ class XGBoostModel:
 
         # save epochs number
         self.epochs = len(evals_result['train']['rmse'])
-
-        # save trained model
-        self.save_model()
     
 
     ##########################################
@@ -175,30 +176,34 @@ class XGBoostModel:
         y_pred = self.model.predict(dtest)
         return y_pred.reshape(-1, self.output_units)
 
-    # compute metrics 
+    # evaluate trained model
     def evaluate(self, x_test, y_test):
         # compute predictions
         y_pred = self.predict(x_test)
-        
+
         # check shapes
         if y_test.shape != y_pred.shape:
             raise ValueError(f"Errore: la forma di y_test {y_test.shape} e y_pred {y_pred.shape} non corrisponde.")
-        
+
         # handling of the two cases, monofactorial or multifactorial output
         num_outputs = y_test.shape[1]
-        
+
         if num_outputs == 1:
             mse = mean_squared_error(y_test, y_pred)
             rmse = np.sqrt(mse)
             mae = mean_absolute_error(y_test, y_pred)
             r2 = r2_score(y_test, y_pred)
-            
+            mape = self.mean_absolute_percentage_error(y_test, y_pred)
+            smape = self.symmetric_mean_absolute_percentage_error(y_test, y_pred)
+
             self.metrics = {
                 "Output": ["Unico"],
                 "MSE": [mse],
                 "RMSE": [rmse],
                 "MAE": [mae],
-                "R2": [r2]
+                "R2": [r2],
+                "MAPE (%)": [mape],
+                "sMAPE (%)": [smape]
             }
         else:
             detailed_results = {}
@@ -207,6 +212,8 @@ class XGBoostModel:
             detailed_results["RMSE"] = [np.sqrt(detailed_results["MSE"][i]) for i in range(num_outputs)]
             detailed_results["MAE"] = [mean_absolute_error(y_test[:, i], y_pred[:, i]) for i in range(num_outputs)]
             detailed_results["R2"] = [r2_score(y_test[:, i], y_pred[:, i]) for i in range(num_outputs)]
+            detailed_results["MAPE (%)"] = [self.mean_absolute_percentage_error(y_test[:, i], y_pred[:, i]) for i in range(num_outputs)]
+            detailed_results["sMAPE (%)"] = [self.symmetric_mean_absolute_percentage_error(y_test[:, i], y_pred[:, i]) for i in range(num_outputs)]
             
             self.metrics = {
                 "Output": ["Media"],
@@ -214,6 +221,8 @@ class XGBoostModel:
                 "RMSE": [np.sqrt(np.mean(detailed_results["MSE"]))],
                 "MAE": [np.mean(detailed_results["MAE"])],
                 "R2": [np.mean(detailed_results["R2"])],
+                "MAPE (%)": [np.mean(detailed_results["MAPE (%)"])],
+                "sMAPE (%)": [np.mean(detailed_results["sMAPE (%)"])]
             }
 
     # compare predictions with true values
@@ -265,7 +274,26 @@ class XGBoostModel:
     # create folder results
     def create_results_folder(self, folder):
         os.makedirs(folder, exist_ok=True)
-          
+
+
+    #########################
+    ### METRICS AND ERROR ###
+
+
+    # metrica MAPE indipendente dalla scala
+    def mean_absolute_percentage_error(self, y_true, y_pred):
+        y_true, y_pred = np.array(y_true), np.array(y_pred)
+        return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
+    
+    # metrica sMAPE indipendente dalla scala
+    def symmetric_mean_absolute_percentage_error(self, y_true, y_pred):
+        y_true, y_pred = np.array(y_true), np.array(y_pred)
+        denominator = (np.abs(y_true) + np.abs(y_pred)) / 2
+        diff = np.abs(y_pred - y_true) / denominator
+        # Evitiamo divisioni per zero
+        diff[denominator == 0] = 0
+        return np.mean(diff) * 100
+            
 
 
     

@@ -1,0 +1,12 @@
+{
+    "id": 8,
+    "seq_length": 150,
+    "dim_slice": 10,
+    "sampling": 4,
+    "overlapping": 0,
+    "train_ratio": 0.7,
+    "test_ratio": 0.15,
+    "val_ratio": 0.15,
+    "shuffle": true,
+    "norm_value": 310456864.0
+}

@@ -1,0 +1,113 @@
+{
+    "config_1": {
+        "id": 1,
+        "dim_slice": 5,
+        "sampling": 4,
+        "seq_length": 3,
+        "overlapping": 0,
+        "window_size": 8,
+        "wavelet": "db4",
+        "wavelet_level": 3,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15
+    },
+    "config_2": {
+        "id": 2,
+        "dim_slice": 5,
+        "sampling": 4,
+        "seq_length": 6,
+        "overlapping": 0,
+        "window_size": 8,
+        "wavelet": "db4",
+        "wavelet_level": 3,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15
+    },
+    "config_3": {
+        "id": 3,
+        "dim_slice": 5,
+        "sampling": 4,
+        "seq_length": 15,
+        "overlapping": 0,
+        "window_size": 8,
+        "wavelet": "db4",
+        "wavelet_level": 3,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15
+    },
+    "config_4": {
+        "id": 4,
+        "dim_slice": 5,
+        "sampling": 4,
+        "seq_length": 10,
+        "overlapping": 0,
+        "window_size": 4,
+        "wavelet": "db4",
+        "wavelet_level": 3,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15
+    },
+    "config_5": {
+        "id": 5,
+        "dim_slice": 5,
+        "sampling": 4,
+        "seq_length": 10,
+        "overlapping": 0,
+        "window_size": 8,
+        "wavelet": "db4",
+        "wavelet_level": 3,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15
+    },
+    "config_6": {
+        "id": 6,
+        "dim_slice": 5,
+        "sampling": 4,
+        "seq_length": 10,
+        "overlapping": 0,
+        "window_size": 16,
+        "wavelet": "db4",
+        "wavelet_level": 3,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15
+    },
+    "config_7": {
+        "id": 7,
+        "dim_slice": 5,
+        "sampling": 4,
+        "seq_length": 10,
+        "overlapping": 0,
+        "window_size": 32,
+        "wavelet": "db4",
+        "wavelet_level": 3,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15
+    },
+    "config_8": {
+        "id": 5,
+        "dim_slice": 5,
+        "sampling": 4,
+        "seq_length": 10,
+        "overlapping": 0.9,
+        "window_size": 8,
+        "wavelet": "db4",
+        "wavelet_level": 3,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15
+    }   
+}
+
+
+
+
+
+
+

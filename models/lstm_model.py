@@ -1,30 +1,43 @@
 import os
-import json
 import time
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt # type: ignore
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import tensorflow as tf
+from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential # type: ignore
-from tensorflow.keras.layers import LSTM, Dense, Dropout, Input # type: ignore
+from tensorflow.keras.layers import Input, LSTM, Dropout, Dense, BatchNormalization  # type: ignore
 from tensorflow.keras.optimizers import Adam # type: ignore
 from tensorflow.keras import backend as K # type: ignore
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint # type: ignore
+from tensorflow.keras.regularizers import l2  # type: ignore    
 
 
 
 class LSTMModel:
-    def __init__(self, input_shape, folder, lstm_units=50, output_units=1, dropout_rate=0.2, learning_rate=0.001, return_sequences=False, patience=10):
+    def __init__(self, input_shape, folder, lstm_units=32, output_units=1, dropout_rate=0.2, learning_rate=0.001, return_sequences=False, patience=10):
         
         ### FIELDS ###
 
         # model
+        #self.model = Sequential([
+        #    Input(shape=input_shape),
+        #    LSTM(lstm_units, return_sequences=True),
+        #    Dropout(dropout_rate),
+        #    LSTM(lstm_units, return_sequences=return_sequences),
+         #   Dropout(dropout_rate),
+        #    Dense(output_units)
+        #])
+
+        # model
         self.model = Sequential([
             Input(shape=input_shape),
-            LSTM(lstm_units, return_sequences=True),
+            LSTM(lstm_units // 2, return_sequences=True, recurrent_dropout=0.2,
+                kernel_regularizer=l2(1e-4), recurrent_regularizer=l2(1e-4)),
+            BatchNormalization(),
             Dropout(dropout_rate),
-            LSTM(lstm_units, return_sequences=return_sequences),
+            LSTM(lstm_units // 2, return_sequences=return_sequences, recurrent_dropout=0.2,
+                kernel_regularizer=l2(1e-4), recurrent_regularizer=l2(1e-4)),
             Dropout(dropout_rate),
             Dense(output_units)
         ])
@@ -84,6 +97,8 @@ class LSTMModel:
             'rmse': self.metrics["RMSE"][0],
             'mae': self.metrics["MAE"][0],
             'r2': self.metrics["R2"][0],
+            'mape (%)': self.metrics["MAPE (%)"][0],
+            'smape (%)': self.metrics["sMAPE (%)"][0]
         }
     
     # restituisce il training time
@@ -171,74 +186,84 @@ class LSTMModel:
     def predict(self, x_test):
         return self.model.predict(x_test)
     
-    # compute metrics 
-    def evaluate(self, x_test, y_test):
+    # evaluate trained model
+    def evaluate(self, x_test, y_test_denormalized, y_scaler):
         # compute predictions
         y_pred = self.predict(x_test)
 
+        # denormalization
+        y_pred_denormalized = y_scaler.inverse_transform(y_pred)
+
         # check shapes
-        if y_test.shape != y_pred.shape:
-            raise ValueError(f"Errore: la forma di y_test {y_test.shape} e y_pred {y_pred.shape} non corrisponde.")
+        if y_test_denormalized.shape != y_pred_denormalized.shape:
+            raise ValueError(f"Errore: la forma di y_test {y_test_denormalized.shape} e y_pred {y_pred_denormalized.shape} non corrisponde.")
 
         # handling of the two cases, monofactorial or multifactorial output
-        num_outputs = y_test.shape[1]
-
-        detailed_results = {}  # Metriche per ogni output
-        mean_results = {}  # Metriche medie su tutti gli output
+        num_outputs = y_test_denormalized.shape[1]
 
         if num_outputs == 1:
-            # univariate case
-            mse = mean_squared_error(y_test, y_pred)
+            mse = mean_squared_error(y_test_denormalized, y_pred_denormalized)
             rmse = np.sqrt(mse)
-            mae = mean_absolute_error(y_test, y_pred)
-            r2 = r2_score(y_test, y_pred)
+            mae = mean_absolute_error(y_test_denormalized, y_pred_denormalized)
+            r2 = r2_score(y_test_denormalized, y_pred_denormalized)
+            mape = self.mean_absolute_percentage_error(y_test_denormalized, y_pred_denormalized)
+            smape = self.symmetric_mean_absolute_percentage_error(y_test_denormalized, y_pred_denormalized)
 
             self.metrics = {
                 "Output": ["Unico"],
                 "MSE": [mse],
                 "RMSE": [rmse],
                 "MAE": [mae],
-                "R2": [r2]
+                "R2": [r2],
+                "MAPE (%)": [mape],
+                "sMAPE (%)": [smape]
             }
         else:
-            # multivariate case
+            detailed_results = {}
             detailed_results["Output"] = [f"Output {i+1}" for i in range(num_outputs)]
-            detailed_results["MSE"] = [mean_squared_error(y_test[:, i], y_pred[:, i]) for i in range(num_outputs)]
+            detailed_results["MSE"] = [mean_squared_error(y_test_denormalized[:, i], y_pred_denormalized[:, i]) for i in range(num_outputs)]
             detailed_results["RMSE"] = [np.sqrt(detailed_results["MSE"][i]) for i in range(num_outputs)]
-            detailed_results["MAE"] = [mean_absolute_error(y_test[:, i], y_pred[:, i]) for i in range(num_outputs)]
-            detailed_results["R2"] = [r2_score(y_test[:, i], y_pred[:, i]) for i in range(num_outputs)]
-
-            # compute average
+            detailed_results["MAE"] = [mean_absolute_error(y_test_denormalized[:, i], y_pred_denormalized[:, i]) for i in range(num_outputs)]
+            detailed_results["R2"] = [r2_score(y_test_denormalized[:, i], y_pred_denormalized[:, i]) for i in range(num_outputs)]
+            detailed_results["MAPE (%)"] = [self.mean_absolute_percentage_error(y_test_denormalized[:, i], y_pred_denormalized[:, i]) for i in range(num_outputs)]
+            detailed_results["sMAPE (%)"] = [self.symmetric_mean_absolute_percentage_error(y_test_denormalized[:, i], y_pred_denormalized[:, i]) for i in range(num_outputs)]
+            
             self.metrics = {
                 "Output": ["Media"],
                 "MSE": [np.mean(detailed_results["MSE"])],
                 "RMSE": [np.sqrt(np.mean(detailed_results["MSE"]))],
                 "MAE": [np.mean(detailed_results["MAE"])],
-                "R2": [np.mean(detailed_results["R2"])]
+                "R2": [np.mean(detailed_results["R2"])],
+                "MAPE (%)": [np.mean(detailed_results["MAPE (%)"])],
+                "sMAPE (%)": [np.mean(detailed_results["sMAPE (%)"])]
             }
     
     # compare predictions
-    def compare_predictions(self, X_test, y_test):
+    def compare_predictions(self, X_test, y_test_denormalized, y_scaler):
         # make predictions
         y_pred = self.predict(X_test)
+        
+        # denormalization
+        y_pred_denormalized = y_scaler.inverse_transform(y_pred)
 
         # handling of the two cases, monofactorial or multifactorial output
-        num_outputs = y_test.shape[1]
+        num_outputs = y_test_denormalized.shape[1]
 
         if num_outputs == 1:
             comparison_df = pd.DataFrame({
-                "Real Values": y_test.flatten(),
-                "Predicted Values": y_pred.flatten()
+                "Real Values": y_test_denormalized.flatten(),
+                "Predicted Values": y_pred_denormalized.flatten()
             })
         else:
-            columns_real = [f"Real Values {i+1}" for i in range(y_test.shape[1])]
-            columns_pred = [f"Predicted Values {i+1}" for i in range(y_pred.shape[1])]
-            comparison_df = pd.DataFrame(np.hstack([y_test, y_pred]), columns=columns_real + columns_pred)
+            columns_real = [f"Real Values {i+1}" for i in range(y_test_denormalized.shape[1])]
+            columns_pred = [f"Predicted Values {i+1}" for i in range(y_pred_denormalized.shape[1])]
+            comparison_df = pd.DataFrame(np.hstack([y_test_denormalized, y_pred_denormalized]), columns=columns_real + columns_pred)
 
         comparison_path = os.path.join(self.folder, "predictions_comparison.csv")
         comparison_df.to_csv(comparison_path, index=False)
         print(f"Confronto predizioni salvato in {comparison_path}")
         return comparison_df
+
     
     ###########################
     ### SAVE AND LOAD MODEL ###
@@ -260,10 +285,31 @@ class LSTMModel:
             print(f"Nessun modello trovato in {model_path}.")
 
     
-   #################
+
+    #################
     ### UTILITIES ###
 
     # create folder results
     def create_results_folder(self, folder):
         os.makedirs(folder, exist_ok=True)
           
+
+
+    #########################
+    ### METRICS AND ERROR ###
+
+
+    # metrica MAPE indipendente dalla scala
+    def mean_absolute_percentage_error(self, y_true, y_pred):
+        y_true, y_pred = np.array(y_true), np.array(y_pred)
+        return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
+    
+    # metrica sMAPE indipendente dalla scala
+    def symmetric_mean_absolute_percentage_error(self, y_true, y_pred):
+        y_true, y_pred = np.array(y_true), np.array(y_pred)
+        denominator = (np.abs(y_true) + np.abs(y_pred)) / 2
+        diff = np.abs(y_pred - y_true) / denominator
+        # Evitiamo divisioni per zero
+        diff[denominator == 0] = 0
+        return np.mean(diff) * 100
+        

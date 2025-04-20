@@ -1,0 +1,49 @@
+{
+    "config_1": {
+        "id": 1,
+        "dim_slice": 5,
+        "sampling": 4,
+        "seq_length": 10,
+        "overlapping": 0.5,
+        "overlapping_2": 0.9,
+        "window_size": 50,
+        "nperseg": 5,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15,
+        "sample_rate" : 50000
+    },
+    "config_2": {
+        "id": 2,
+        "dim_slice": 5,
+        "sampling": 4,
+        "seq_length": 20,
+        "overlapping": 0.5,
+        "overlapping_2": 0.9,
+        "window_size": 50,
+        "nperseg": 5,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15,
+        "sample_rate" : 50000
+    },
+    "config_3": {
+        "id": 3,
+        "dim_slice": 5,
+        "sampling": 4,
+        "seq_length": 20,
+        "overlapping": 0.5,
+        "overlapping_2": 0.9,
+        "window_size": 20,
+        "nperseg": 10,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15,
+        "sample_rate" : 50000
+    }
+}
+
+
+
+
+

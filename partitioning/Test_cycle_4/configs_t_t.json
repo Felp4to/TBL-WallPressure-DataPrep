@@ -1,0 +1,79 @@
+{
+    "config_1": {
+        "id": 1,
+        "seq_length": 5,
+        "dim_slice": 5,
+        "sampling": 4,
+        "overlapping": 0,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15,
+        "shuffle": true
+    },
+    "config_2": {
+        "id": 2,
+        "seq_length": 10,
+        "dim_slice": 10,
+        "sampling": 4,
+        "overlapping": 0,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15,
+        "shuffle": true
+    },
+    "config_3": {
+        "id": 3,
+        "seq_length": 20,
+        "dim_slice": 20,
+        "sampling": 4,
+        "overlapping": 0,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15,
+        "shuffle": true
+    },
+    "config_4": {
+        "id": 4,
+        "seq_length": 40,
+        "dim_slice": 40,
+        "sampling": 4,
+        "overlapping": 0,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15,
+        "shuffle": true
+    },
+    "config_5": {
+        "id": 5,
+        "seq_length": 60,
+        "dim_slice": 50,
+        "sampling": 4,
+        "overlapping": 0,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15,
+        "shuffle": true
+    },
+    "config_6": {
+        "id": 6,
+        "seq_length": 80,
+        "dim_slice": 60,
+        "sampling": 4,
+        "overlapping": 0,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15,
+        "shuffle": true
+    },
+    "config_7": {
+        "id": 7,
+        "seq_length": 100,
+        "dim_slice": 60,
+        "sampling": 4,
+        "overlapping": 0,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15,
+        "shuffle": true
+    }
+}

@@ -1,0 +1,4 @@
+Dominio temporare
+3 partizioni con differenti seq_length (es. 20-40-60) ma stesso numero di samples.
+
+

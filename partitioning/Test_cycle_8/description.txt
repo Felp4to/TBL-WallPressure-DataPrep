@@ -1,0 +1,16 @@
+In questo ciclo di test si introduce un'analisi in frequenze del segnale per estrarre features da aggiungere alle sequenze. In modo particolare
+un certo intervallo temporale viene suddiviso in finestre e per ogni finestra viene calcolata la traformata di Fourier. Le features temporali e 
+nel dominio della frequenza vengono utilizzate per creare le sequenze. In questi test la lunghezza della sequenza di input sarà fissa, ma varierò 
+la dimensione delle finestre su cui viene applicata al trasformata di Fourier. I modelli impiegati sono sempre XGBOOST, LSTM e CNN.
+
+window size tries:
+    - 5
+    - 10
+    - 20
+    - 25
+    - 50
+
+
+
+
+

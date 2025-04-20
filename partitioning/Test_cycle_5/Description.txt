@@ -1,0 +1,29 @@
+### DOMINI ###
+
+    Dominio temporare
+    - Test con partizioni che presentano lo stesso numero di samples ma sequenze più o meno lunghe (si esplora un range compreso tra 5 e 100 datapoints)
+
+    Dominio Fourier
+    - Test con partizioni che presentano finestre temporali di diversa dimensione. Piccolo test anche sulla lunghezza della sequenza
+
+    Dominio Wavelet
+    - Test con partizioni che presentano finestre temporali di diversa dimensione. Piccolo test anche sulla lunghezza della sequenza
+
+
+### MODELLI ###
+
+    XGBOOST, LSTM, CNN, Informer, CNN+LSTM
+
+
+
+
+
+
+
+
+
+
+
+
+
+

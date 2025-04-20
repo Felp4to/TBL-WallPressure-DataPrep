@@ -1,0 +1,83 @@
+{
+    "config_1": {
+        "id": 1,
+        "seq_length": 20,
+        "dim_slice": 10,
+        "sampling": 4,
+        "overlapping": 0.8,
+        "window_size": 32,
+        "wavelet": "db4",
+        "wavelet_level": 3,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15
+    },
+    "config_2": {
+        "id": 2,
+        "seq_length": 10,
+        "dim_slice": 10,
+        "sampling": 4,
+        "overlapping": 0.8,
+        "window_size": 32,
+        "wavelet": "db4",
+        "wavelet_level": 3,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15
+    },
+    "config_3": {
+        "id": 3,
+        "seq_length": 10,
+        "dim_slice": 10,
+        "sampling": 4,
+        "overlapping": 0.8,
+        "window_size": 16,
+        "wavelet": "db4",
+        "wavelet_level": 3,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15
+    },
+    "config_4": {
+        "id": 4,
+        "seq_length": 10,
+        "dim_slice": 10,
+        "sampling": 4,
+        "overlapping": 0.8,
+        "window_size": 8,
+        "wavelet": "db4",
+        "wavelet_level": 3,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15
+    },
+    "config_5": {
+        "id": 5,
+        "seq_length": 10,
+        "dim_slice": 10,
+        "sampling": 4,
+        "overlapping": 0.8,
+        "window_size": 4,
+        "wavelet": "db4",
+        "wavelet_level": 3,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15
+    },
+    "config_6": {
+        "id": 6,
+        "seq_length": 20,
+        "dim_slice": 10,
+        "sampling": 4,
+        "overlapping": 0.8,
+        "window_size": 4,
+        "wavelet": "db4",
+        "wavelet_level": 3,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15
+    }
+}
+
+
+

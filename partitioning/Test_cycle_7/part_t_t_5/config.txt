@@ -1,0 +1,11 @@
+{
+    "id": 5,
+    "seq_length": 100,
+    "dim_slice": 10,
+    "sampling": 4,
+    "overlapping": 0,
+    "train_ratio": 0.7,
+    "test_ratio": 0.15,
+    "val_ratio": 0.15,
+    "shuffle": true
+}

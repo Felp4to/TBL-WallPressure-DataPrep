@@ -6,9 +6,8 @@ import pandas as pd
 
 
 # extract first n seconds from time series
-def slicing(file_path, secs):
+def slicing(df, secs):
     """Estrae i primi n secondi della serie temporale."""
-    df = pd.read_csv(file_path)
     num_samples = secs * cs.SAMPLING_RATE
     return df["singleData"].iloc[:num_samples]
 

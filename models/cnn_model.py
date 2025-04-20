@@ -21,16 +21,17 @@ class CNNModel:
 
         # model
         self.model = Sequential([
-            Input(shape=input_shape),
+            Input(shape=input_shape),       # (input_shape) = (seq_length, num_features)
             Conv1D(filters=num_filters, kernel_size=kernel_size, activation='relu'),
             Dropout(dropout_rate),
-            Conv1D(filters=num_filters, kernel_size=kernel_size, activation='relu'),
+            Conv1D(filters=num_filters // 2, kernel_size=kernel_size, activation='relu'),
             Dropout(dropout_rate),
             Flatten(),
-            Dense(128, activation='relu'),
+            Dense(50, activation='relu'),
             Dense(output_units)
         ])
 
+        
         # compile# compile with metrics mse and rmse
         self.model.compile(optimizer=Adam(learning_rate=learning_rate),
                            loss="mse",
@@ -85,6 +86,8 @@ class CNNModel:
             'rmse': self.metrics["RMSE"][0],
             'mae': self.metrics["MAE"][0],
             'r2': self.metrics["R2"][0],
+            'mape (%)': self.metrics["MAPE (%)"][0],
+            'smape (%)': self.metrics["sMAPE (%)"][0]
         }
     
     # restituisce il training time
@@ -164,7 +167,7 @@ class CNNModel:
     def predict(self, x_test):
         return self.model.predict(x_test)
 
-    # compute metrics 
+    # evaluate trained model
     def evaluate(self, x_test, y_test):
         # compute predictions
         y_pred = self.predict(x_test)
@@ -176,38 +179,93 @@ class CNNModel:
         # handling of the two cases, monofactorial or multifactorial output
         num_outputs = y_test.shape[1]
 
-        detailed_results = {}  # Metriche per ogni output
-        mean_results = {}  # Metriche medie su tutti gli output
-
         if num_outputs == 1:
-            # univariate case
             mse = mean_squared_error(y_test, y_pred)
             rmse = np.sqrt(mse)
             mae = mean_absolute_error(y_test, y_pred)
             r2 = r2_score(y_test, y_pred)
+            mape = self.mean_absolute_percentage_error(y_test, y_pred)
+            smape = self.symmetric_mean_absolute_percentage_error(y_test, y_pred)
 
             self.metrics = {
                 "Output": ["Unico"],
                 "MSE": [mse],
                 "RMSE": [rmse],
                 "MAE": [mae],
-                "R2": [r2]
+                "R2": [r2],
+                "MAPE (%)": [mape],
+                "sMAPE (%)": [smape]
             }
         else:
-            # multivariate case
+            detailed_results = {}
             detailed_results["Output"] = [f"Output {i+1}" for i in range(num_outputs)]
             detailed_results["MSE"] = [mean_squared_error(y_test[:, i], y_pred[:, i]) for i in range(num_outputs)]
             detailed_results["RMSE"] = [np.sqrt(detailed_results["MSE"][i]) for i in range(num_outputs)]
             detailed_results["MAE"] = [mean_absolute_error(y_test[:, i], y_pred[:, i]) for i in range(num_outputs)]
             detailed_results["R2"] = [r2_score(y_test[:, i], y_pred[:, i]) for i in range(num_outputs)]
-
-            # compute average
+            detailed_results["MAPE (%)"] = [self.mean_absolute_percentage_error(y_test[:, i], y_pred[:, i]) for i in range(num_outputs)]
+            detailed_results["sMAPE (%)"] = [self.symmetric_mean_absolute_percentage_error(y_test[:, i], y_pred[:, i]) for i in range(num_outputs)]
+            
             self.metrics = {
                 "Output": ["Media"],
                 "MSE": [np.mean(detailed_results["MSE"])],
                 "RMSE": [np.sqrt(np.mean(detailed_results["MSE"]))],
                 "MAE": [np.mean(detailed_results["MAE"])],
-                "R2": [np.mean(detailed_results["R2"])]
+                "R2": [np.mean(detailed_results["R2"])],
+                "MAPE (%)": [np.mean(detailed_results["MAPE (%)"])],
+                "sMAPE (%)": [np.mean(detailed_results["sMAPE (%)"])]
+            }
+
+    # evaluate trained model
+    def evaluate2(self, x_test, y_test_denormalized, y_scaler):
+        # compute predictions
+        y_pred = self.predict(x_test)
+        
+        # denormalization
+        y_pred_denormalized = y_scaler.inverse_transform(y_pred)
+
+        # check shapes
+        if y_test_denormalized.shape != y_pred_denormalized.shape:
+            raise ValueError(f"Errore: la forma di y_test {y_test_denormalized.shape} e y_pred {y_pred_denormalized.shape} non corrisponde.")
+
+        # handling of the two cases, monofactorial or multifactorial output
+        num_outputs = y_test_denormalized.shape[1]
+
+        if num_outputs == 1:
+            mse = mean_squared_error(y_test_denormalized, y_pred_denormalized)
+            rmse = np.sqrt(mse)
+            mae = mean_absolute_error(y_test_denormalized, y_pred_denormalized)
+            r2 = r2_score(y_test_denormalized, y_pred_denormalized)
+            mape = self.mean_absolute_percentage_error(y_test_denormalized, y_pred_denormalized)
+            smape = self.symmetric_mean_absolute_percentage_error(y_test_denormalized, y_pred_denormalized)
+
+            self.metrics = {
+                "Output": ["Unico"],
+                "MSE": [mse],
+                "RMSE": [rmse],
+                "MAE": [mae],
+                "R2": [r2],
+                "MAPE (%)": [mape],
+                "sMAPE (%)": [smape]
+            }
+        else:
+            detailed_results = {}
+            detailed_results["Output"] = [f"Output {i+1}" for i in range(num_outputs)]
+            detailed_results["MSE"] = [mean_squared_error(y_test_denormalized[:, i], y_pred_denormalized[:, i]) for i in range(num_outputs)]
+            detailed_results["RMSE"] = [np.sqrt(detailed_results["MSE"][i]) for i in range(num_outputs)]
+            detailed_results["MAE"] = [mean_absolute_error(y_test_denormalized[:, i], y_pred_denormalized[:, i]) for i in range(num_outputs)]
+            detailed_results["R2"] = [r2_score(y_test_denormalized[:, i], y_pred_denormalized[:, i]) for i in range(num_outputs)]
+            detailed_results["MAPE (%)"] = [self.mean_absolute_percentage_error(y_test_denormalized[:, i], y_pred_denormalized[:, i]) for i in range(num_outputs)]
+            detailed_results["sMAPE (%)"] = [self.symmetric_mean_absolute_percentage_error(y_test_denormalized[:, i], y_pred_denormalized[:, i]) for i in range(num_outputs)]
+            
+            self.metrics = {
+                "Output": ["Media"],
+                "MSE": [np.mean(detailed_results["MSE"])],
+                "RMSE": [np.sqrt(np.mean(detailed_results["MSE"]))],
+                "MAE": [np.mean(detailed_results["MAE"])],
+                "R2": [np.mean(detailed_results["R2"])],
+                "MAPE (%)": [np.mean(detailed_results["MAPE (%)"])],
+                "sMAPE (%)": [np.mean(detailed_results["sMAPE (%)"])]
             }
     
     # compare predictions
@@ -227,6 +285,32 @@ class CNNModel:
             columns_real = [f"Real Values {i+1}" for i in range(y_test.shape[1])]
             columns_pred = [f"Predicted Values {i+1}" for i in range(y_pred.shape[1])]
             comparison_df = pd.DataFrame(np.hstack([y_test, y_pred]), columns=columns_real + columns_pred)
+
+        comparison_path = os.path.join(self.folder, "predictions_comparison.csv")
+        comparison_df.to_csv(comparison_path, index=False)
+        print(f"Confronto predizioni salvato in {comparison_path}")
+        return comparison_df
+    
+    # compare predictions
+    def compare_predictions2(self, X_test, y_test_denormalized, y_scaler):
+        # make predictions
+        y_pred = self.predict(X_test)
+
+        # denormalization
+        y_pred_denormalized = y_scaler.inverse_transform(y_pred)
+
+        # handling of the two cases, monofactorial or multifactorial output
+        num_outputs = y_test_denormalized.shape[1]
+
+        if num_outputs == 1:
+            comparison_df = pd.DataFrame({
+                "Real Values": y_test_denormalized.flatten(),
+                "Predicted Values": y_pred_denormalized.flatten()
+            })
+        else:
+            columns_real = [f"Real Values {i+1}" for i in range(y_test_denormalized.shape[1])]
+            columns_pred = [f"Predicted Values {i+1}" for i in range(y_pred_denormalized.shape[1])]
+            comparison_df = pd.DataFrame(np.hstack([y_test_denormalized, y_pred_denormalized]), columns=columns_real + columns_pred)
 
         comparison_path = os.path.join(self.folder, "predictions_comparison.csv")
         comparison_df.to_csv(comparison_path, index=False)
@@ -258,3 +342,24 @@ class CNNModel:
     def create_results_folder(self, folder):
         os.makedirs(folder, exist_ok=True)
           
+
+    #########################
+    ### METRICS AND ERROR ###
+
+
+    # metrica MAPE indipendente dalla scala
+    def mean_absolute_percentage_error(self, y_true, y_pred):
+        y_true, y_pred = np.array(y_true), np.array(y_pred)
+        non_zero = y_true != 0
+        return np.mean(np.abs((y_true[non_zero] - y_pred[non_zero]) / y_true[non_zero])) * 100
+
+    
+    # metrica sMAPE indipendente dalla scala
+    def symmetric_mean_absolute_percentage_error(self, y_true, y_pred):
+        y_true, y_pred = np.array(y_true), np.array(y_pred)
+        denominator = (np.abs(y_true) + np.abs(y_pred)) / 2
+        diff = np.zeros_like(denominator)
+        non_zero = denominator != 0
+        diff[non_zero] = np.abs(y_pred[non_zero] - y_true[non_zero]) / denominator[non_zero]
+        return np.mean(diff) * 100
+        

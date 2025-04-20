@@ -3,7 +3,18 @@
 import os
 import json
 import pywt
+import sys
 import numpy as np
+
+modulo_path = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), '..', 'preprocessing', 'npy')
+)
+sys.path.append(modulo_path)
+import spectrogram as spectrogram
+import fourier as fourier
+import wavelet as wavelet
+import time_features as t_features
+
 
 
 
@@ -19,7 +30,6 @@ def split_and_save_dataset(X, y, foldername, config):
         "La somma di train_ratio, val_ratio e test_ratio deve essere 1.0"
     
     # Crea la cartella se non esiste
-    foldername = os.path.join("partitions", foldername)
     os.makedirs(foldername, exist_ok=True)
 
     # Salva config in un file JSON
@@ -66,23 +76,99 @@ def split_and_save_dataset(X, y, foldername, config):
     print(f"\n✅ Partizioni create e salvate in '{foldername}'")
 
 
-# Ogni sequenza è composta da una sequenza di valori di pressione, e il target è il valore successivo
-def generate_time_sequences(df, config):
+# restituisce una elemento della sequenza in questo formato: {features, fft[window], [t(i), t(i + window_size)]}
+def extract_features_stats_raw(window):
+    stats = t_features.extract_features(window)
+    raw = window
+    fft_feats = fourier.extract_fft_real_imag(window)
+    return np.concatenate([stats, raw, fft_feats])
+
+
+# restituisce matrice di sequenze: {features, [t(i), t(i + window_size)], fft[window], wavelet[window]} --> t(i + window_size + 1)
+def generate_multi_feature_sequences(ts, ts_normalized, config):  
+    X = []
+    y = []
+    y2 = []
+
+    window_size = config['window_size']
+    sequence_length = config['seq_length']
+    overlap = config['overlapping']
+
+    base_step = window_size * sequence_length + 1
+    assert 0 <= overlap < 1, "overlap deve essere un valore tra 0 e 1 (escluso 1)"
+    
+    # Calcola lo step effettivo con overlapping
+    step = int(base_step * (1 - overlap)) if overlap > 0 else base_step
+
+    max_start = len(ts) - (window_size * sequence_length + 1)
+    
+    for start in range(0, max_start + 1, step):
+        features = []
+        valid = True
+
+        for k in range(sequence_length):
+            start_index = start + k * window_size
+            end_index = start_index + window_size
+
+            if end_index > len(ts_normalized):
+                valid = False
+                break
+
+            window = ts_normalized[start_index:end_index]
+            # estrazione delle feature
+            #stats = t_features.extract_time_features(window)
+            raw = window
+            fft_coeff = fourier.extract_fft_real_imag(window)
+            #wavelet_coeff = wavelet.wavelet_transform(window)
+            features.append(np.concatenate([raw, fft_coeff]))
+            #features.append(np.concatenate([stats, raw, fft_feats, wavelet_coeff]))
+
+        if not valid:
+            break
+
+        target_index = start + window_size * sequence_length
+        if target_index >= len(ts):
+            break
+
+        X.append(np.concatenate(features))
+        y.append(ts[target_index])
+        y2.append(ts_normalized[target_index])
+
+    X = np.array(X)
+    y = np.array(y)
+    y2 = np.array(y2)
+
+    print(f"Shape di X: {X.shape}")
+    print(f"Shape di y: {y.shape}")
+
+    return X, y, y2
+
+
+# Ogni sequenza è composta da una serie di valori di pressione, e il target è il valore successivo
+def generate_time_sequences(ts, ts_normalized, config):
     seq_length = config["seq_length"]
     overlap = config["overlapping"]
     step = int(seq_length * (1 - overlap) + 1) if overlap > 0 else seq_length + 1
 
-    data = df.values
-    X, y = [], []
+    X, y, y2 = [], [], []
 
-    for i in range(0, len(data) - seq_length, step):
-        X.append(data[i:i+seq_length])
-        y.append(data[i+seq_length])
+    for i in range(0, len(ts_normalized) - seq_length, step):
+        X.append(ts_normalized[i:i + seq_length])
+        y.append(ts[i + seq_length])
+        y2.append(ts_normalized[i + seq_length])
 
     X = np.array(X)
     y = np.array(y)
+    y2 = np.array(y2)
 
-    return X, y
+    # Convert X in 2D (samples x timesteps)
+    X = X.reshape(X.shape[0], -1)
+
+    # Convert y in 1D
+    y = y.reshape(-1)
+    y2 = y2.reshape(-1)
+    
+    return X, y, y2
 
 
 # Ogni sequenza è composta da più finestre trasformate con Fourier, e il target è la finestra successiva alla sequenza
@@ -148,7 +234,7 @@ def generate_fft_sequences_with_frequency_target(ts, config):
 def generate_fft_sequences_with_temporal_target(ts, config):  
     X = []
     y = []
-
+    
     window_size = config['window_size']
     sequence_length = config['seq_length']
     overlap = config['overlapping']
@@ -248,7 +334,10 @@ def generate_wavelet_sequences_with_temporal_target(ts, config):
     wavelet_level = config['wavelet_level']
     wavelet = config['wavelet']
 
-    base_step = window_size * sequence_length + 1
+    base_step = window_size * sequence_length + 1  
+    if overlap == 0:
+        base_step += 1 
+
     assert 0 <= overlap < 1, "overlap deve essere un valore tra 0 e 1 (escluso 1)"
 
     step = int(base_step * (1 - overlap)) if overlap > 0 else base_step
@@ -261,13 +350,13 @@ def generate_wavelet_sequences_with_temporal_target(ts, config):
         for k in range(sequence_length):
             start_index = start + k * window_size
             end_index = start_index + window_size
-
+            
             if end_index > len(ts):
                 valid = False
                 break
-
+            
             window = ts[start_index:end_index]
-
+            
             # Applica la trasformata wavelet discreta
             coeffs = pywt.wavedec(window, wavelet=wavelet, level=wavelet_level)
             wavelet_features = np.concatenate(coeffs)
@@ -292,7 +381,64 @@ def generate_wavelet_sequences_with_temporal_target(ts, config):
     return X, y
 
 
+# Ogni sequenza è composta da spettrogrammi, e il target è il valore temporale successivo alla sequenza
+def generate_spectrogram_sequences_with_temporal_target(ts, config):
+    X = []
+    y = []
 
+    window_size = config['window_size']
+    sequence_length = config['seq_length']
+    overlap = config['overlapping']
+    overlap2 = config['overlapping_2']
+    fs = config['sample_rate']
+    nperseg = config['nperseg']
+
+    base_step = window_size * sequence_length + 1
+    if overlap == 0:
+        base_step += 1
+
+    assert 0 <= overlap < 1, "overlap deve essere un valore tra 0 e 1 (escluso 1)"
+    step = int(base_step * (1 - overlap)) if overlap > 0 else base_step
+    max_start = len(ts) - (window_size * sequence_length + 1)
+
+    for start in range(0, max_start + 1, step):
+        features = []
+        valid = True
+
+        for k in range(sequence_length):
+            start_index = start + k * window_size
+            end_index = start_index + window_size
+
+            if end_index > len(ts):
+                valid = False
+                break
+            
+            window = ts[start_index:end_index]
+
+            # Calcola lo spettrogramma
+            f, t, Sxx = spectrogram.calculate_spectrogram(window, fs=fs, nperseg=nperseg, overlap=overlap2, plot=False, show_info=False)
+
+            # Appiattisci lo spettrogramma (puoi anche fare medie/statistiche)
+            spec_features = Sxx.flatten()
+            features.append(spec_features)
+
+        if not valid:
+            break
+
+        target_index = start + window_size * sequence_length
+        if target_index >= len(ts):
+            break
+
+        X.append(np.concatenate(features))
+        y.append(ts[target_index])
+
+    X = np.array(X)
+    y = np.array(y)
+
+    print(f"Shape di X: {X.shape}")
+    print(f"Shape di y: {y.shape}")
+
+    return X, y
 
 
 

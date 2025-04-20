@@ -1,0 +1,14 @@
+Provo per modelli di ML come XGBOOST a fare features enginnering. Ogni elemento di una sequenza contiene informazioni raw, fourier e stats come
+varianza, media, max, min, energia...
+
+
+
+
+
+
+
+
+
+
+
+
