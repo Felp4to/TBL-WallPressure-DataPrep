@@ -1,0 +1,61 @@
+{
+    "config_1": {
+        "id": 1,
+        "dim_slice": 10,
+        "sampling": 4,
+        "seq_length": 20,
+        "overlapping": 0,
+        "window_size": 5,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15
+    },
+    "config_2": {
+        "id": 2,
+        "dim_slice": 10,
+        "sampling": 4,
+        "seq_length": 10,
+        "overlapping": 0,
+        "window_size": 10,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15
+    },
+    "config_3": {
+        "id": 3,
+        "dim_slice": 10,
+        "sampling": 4,
+        "seq_length": 5,
+        "overlapping": 0,
+        "window_size": 20,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15
+    },
+    "config_4": {
+        "id": 4,
+        "dim_slice": 10,
+        "sampling": 4,
+        "seq_length": 4,
+        "overlapping": 0,
+        "window_size": 25,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15
+    },
+    "config_5": {
+        "id": 5,
+        "dim_slice": 10,
+        "sampling": 4,
+        "seq_length": 2,
+        "overlapping": 0,
+        "window_size": 50,
+        "train_ratio": 0.7,
+        "test_ratio": 0.15,
+        "val_ratio": 0.15
+    }
+}
+
+
+
+

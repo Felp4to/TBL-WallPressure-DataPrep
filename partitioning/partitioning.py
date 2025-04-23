@@ -116,12 +116,12 @@ def generate_multi_feature_sequences(ts, ts_normalized, config):
 
             window = ts_normalized[start_index:end_index]
             # estrazione delle feature
-            #stats = t_features.extract_time_features(window)
+            stats = t_features.extract_time_features(window)
             raw = window
             fft_coeff = fourier.extract_fft_real_imag(window)
-            #wavelet_coeff = wavelet.wavelet_transform(window)
-            features.append(np.concatenate([raw, fft_coeff]))
-            #features.append(np.concatenate([stats, raw, fft_feats, wavelet_coeff]))
+            wavelet_coeff = wavelet.wavelet_transform(window)
+            # features.append(np.concatenate([raw, fft_coeff]))
+            features.append(np.concatenate([stats, raw, fft_coeff, wavelet_coeff]))
 
         if not valid:
             break
